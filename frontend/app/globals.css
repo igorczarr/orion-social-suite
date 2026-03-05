@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* === DICIONÁRIO DE ELITE VÉRTICE (Tailwind v4) === */
+@import "tailwindcss";
+
+/* 1. VARIÁVEIS DO MOTOR DE TEMAS */
+:root {
+  /* TEMA DARK (Padrão) */
+  --theme-bg: #111111;
+  --theme-text: #F4F4F0;
+  --theme-border: rgba(244, 244, 240, 0.1);
+  --theme-panel: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] {
+  /* TEMA LIGHT */
+  --theme-bg: #F4F4F0;
+  --theme-text: #111111;
+  --theme-border: rgba(17, 17, 17, 0.1);
+  --theme-panel: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="navy"] {
+  /* TEMA NAVY BLUE */
+  --theme-bg: #0B1021;
+  --theme-text: #F4F4F0;
+  --theme-border: rgba(200, 169, 112, 0.2);
+  --theme-panel: rgba(255, 255, 255, 0.03);
+}
+
+/* 2. INJEÇÃO NO TAILWIND V4 */
+@theme {
+  /* Cores Fixas (O Dourado nunca muda) */
+  --color-v-gold: #C8A970;
+  --color-v-blue-navy: #0B1021;
+  --color-v-brown-earth: #8B7355;
+  
+  /* Cores Mutáveis (Obedecem ao Tema) */
+  --color-v-black: var(--theme-bg);
+  --color-v-white-off: var(--theme-text);
+}
+
+/* 3. AJUSTE DO FUNDO GLOBAL */
+body {
+  background-color: var(--theme-bg);
+  color: var(--theme-text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 4. ATUALIZAÇÃO DO GLASS PANEL */
+.glass-panel {
+  background: var(--theme-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--theme-border);
+}
+
+/* Animações e Scrollbar mantêm-se iguais... */
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+.animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
+/* === RESET E COMPORTAMENTOS === */
+html {
+  scroll-behavior: smooth;
+}
+
+/* === UTILITÁRIOS CUSTOMIZADOS VÉRTICE === */
+@layer utilities {
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #c8a970 0%, #e8d0a9 50%, #c8a970 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .glass-panel {
+    background: rgba(20, 29, 51, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(200, 169, 112, 0.15);
+  }
+}
+
+/* =========================================
+   ANIMAÇÕES DE ELITE VRTICE (SVG & UI)
+   ========================================= */
+
+/* O Segredo do Efeito de Desenho a Laser */
+.vrtice-vector {
+  fill: transparent; /* Começa transparente */
+  stroke: var(--color-v-gold); /* A linha é dourada */
+  stroke-width: 2;
+  stroke-dasharray: 1000; /* Comprimento da linha */
+  stroke-dashoffset: 1000; /* Esconde a linha */
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vrtice-text-group {
+  opacity: 0;
+  transform: translateY(20px);
+  fill: var(--color-v-white-off);
+}
+
+/* Quando a animação ativa */
+.vrtice-anim-active .draw-anim {
+  animation: drawStroke 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.vrtice-anim-active .fade-in-up {
+  animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Temporização Dramática */
+.delay-1 { animation-delay: 0.2s; }
+.delay-2 { animation-delay: 0.6s; }
+.delay-3 { animation-delay: 1.8s; } /* O texto só aparece depois do símbolo desenhar */
+
+@keyframes drawStroke {
+  to {
+    stroke-dashoffset: 0; /* A linha se revela */
+    fill: var(--color-v-gold); /* Preenche com ouro no final */
+  }
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Preloader Container */
+#preloader {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--color-v-black);
+  display: flex; justify-content: center; align-items: center;
+}
+
+/* Animação de Saída do Preloader */
+.preloader-exit {
+  animation: fadeOutLoader 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes fadeOutLoader {
+  to { opacity: 0; visibility: hidden; }
+}
+
+@keyframes fadeInUpSubtle {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUpSubtle 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
