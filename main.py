@@ -52,7 +52,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://seu-projeto.vercel.app", # URL que a Vercel vai te dar
+        "https://orion-social.vercel.app", # URL que a Vercel vai te dar
     ],
     allow_credentials=True,
     allow_methods=["*"],
