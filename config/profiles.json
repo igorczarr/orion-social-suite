@@ -1,0 +1,63 @@
+{
+  "system_settings": {
+    "version": "2.0",
+    "headless_mode": true,
+    "global_request_delay_min": 5,
+    "global_request_delay_max": 15,
+    "user_agent_default": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  },
+  "clients": [
+    {
+      "id": "001_vrtice_valentini",
+      "active": true,
+      "username": "sofs.valentini",
+      "niche": "blogger",
+      "auth": {
+        "sessionid": "78833415141%3AaiaGbBTXsm59MW%3A17%3AAYiMZAMgfWoO-IV6BbHjXxSDLLm5Z3kxYVfoygzrgw",
+        "csrftoken": "EHCliaoDZSiwkQjVJeAnEyAJL2GXntIw" 
+      },
+      "config": {
+        "track_stories": true,
+        "track_feed": true
+      },
+      "competitors": [
+        "taina",
+        "julssy__",
+        "biaruyvaa",
+        "ale__gaucha",
+        "milenamoreau_"
+      ],
+      "trends_keywords": [
+        "fitness",
+        "clothes",
+        "sensual",
+        "feminity",
+        "blogger",
+        "moda feminina",
+        "lifestyle brasil"
+      ]
+    },
+    {
+      "id": "002_cliente_exemplo",
+      "active": false,
+      "username": "usuario_cliente_2",
+      "niche": "tecnologia",
+      "auth": {
+        "sessionid": "SESSION_ID_DO_CLIENTE_2",
+        "csrftoken": ""
+      },
+      "config": {
+        "track_stories": true,
+        "track_feed": true
+      },
+      "competitors": [
+        "concorrente_a",
+        "concorrente_b"
+      ],
+      "trends_keywords": [
+        "tech",
+        "innovation"
+      ]
+    }
+  ]
+}
