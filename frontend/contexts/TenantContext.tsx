@@ -7,12 +7,13 @@ import { OrionAPI } from "@/lib/api"; // O nosso cabo de ligação
 // A Estrutura de dados que vem do Backend (Python)
 export interface TenantData {
   id: number;
-  name: string; 
-  social_handle: string; 
-  niche: string;
-  initials: string; 
-  personas: string[]; 
-  competitors: string[]; 
+  name: string;
+  initials: string;
+  social_handle?: string;
+  niche?: string;
+  keywords?: string;      
+  personas?: string[];    
+  competitors?: string[]; 
 }
 
 interface TenantContextProps {

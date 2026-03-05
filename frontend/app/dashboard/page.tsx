@@ -38,8 +38,9 @@ export default function DashboardPage() {
         name: tenantInfo.name,
         social_handle: tenantInfo.social_handle || "",
         niche: tenantInfo.niche || "Moda & Vestuário",
-        personas: tenantInfo.personas?.join(", ") || "",
-        competitors: tenantInfo.competitors?.join(", ") || "",
+        // Usando Array.isArray para garantir que o .join não quebre o build
+        personas: Array.isArray(tenantInfo.personas) ? tenantInfo.personas.join(", ") : "",
+        competitors: Array.isArray(tenantInfo.competitors) ? tenantInfo.competitors.join(", ") : "",
         keywords: tenantInfo.keywords || ""
       });
       setIsEditClientModalOpen(true);
