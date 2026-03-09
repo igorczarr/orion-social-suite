@@ -25,7 +25,7 @@ export default function CompetitorsPage() {
   const [activeTab, setActiveTab] = useState<'ads' | 'organic'>('ads');
 
   // CONEXÃO COM A NUVEM SEGURA
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
   // === 1. BUSCA OS DADOS DA ARENA ===
   const loadArenaData = async () => {

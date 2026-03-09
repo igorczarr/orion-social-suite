@@ -17,7 +17,7 @@ export default function ScoutPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // CONEXÃO SEGURA COM A NUVEM
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
   const carregarInsights = async () => {
     if (!tenantInfo?.id) return;

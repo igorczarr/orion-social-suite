@@ -23,7 +23,7 @@ export default function OraclePage() {
   const [simResult, setSimResult] = useState<{ reach: string, leads: string, roi: string } | null>(null);
 
   // CONEXÃO SEGURA COM A NUVEM
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
   // === MOTOR DE BUSCA (API MATEMÁTICA) ===
   const loadOracleData = async () => {

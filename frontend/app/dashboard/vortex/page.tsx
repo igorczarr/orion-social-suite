@@ -19,7 +19,7 @@ export default function VortexPage() {
   const [copied, setCopied] = useState(false);
 
   // CONEXÃO COM A NUVEM
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
   // === BUSCAR ALVOS NA API ===
   const loadVortexQueue = async () => {

@@ -33,7 +33,7 @@ export default function DashboardPage() {
   });
 
   // APRIMORAMENTO: Uso de Variável de Ambiente para deploy na nuvem
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
   const openEditModal = () => {
     if (tenantInfo) {
