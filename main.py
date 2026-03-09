@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import bcrypt
 import asyncio
@@ -12,16 +12,12 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import desc
 from fastapi.middleware.cors import CORSMiddleware
-from database.connection import SessionLocal, init_db
-from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest
+from database.connection import SessionLocal, init_db, engine
+from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget
 from modules.analytics.ai_engine import AIEngine
 from modules.workers.trend_scraper import OmnidirectionalRadar
-from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget
-from sqlalchemy import desc
-from datetime import datetime, timedelta
 from collections import defaultdict
 from modules.workers.apify_worker import OrionWorker
-
 
 load_dotenv() # Carrega o arquivo .env
 
@@ -35,7 +31,7 @@ if not GEMINI_API_KEY:
     print("⚠️ ALERTA: GEMINI_API_KEY não encontrada nas variáveis de ambiente.")
 
 # --- CONFIGURAÇÕES DE SEGURANÇA ---
-SECRET_KEY = "uma_chave_secreta_muito_segura_VRTICE_2026"
+SECRET_KEY = os.getenv("SECRET_KEY", "uma_chave_secreta_muito_segura_VRTICE_2026")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440 
 
@@ -67,7 +63,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -119,11 +115,35 @@ class AdjustmentRequest(BaseModel):
 class VortexActionRequest(BaseModel):
     target_id: int
     action: str
+
 # --- ROTAS DA API ---
 
 @app.on_event("startup")
 def on_startup():
+    print("🛠️ Iniciando rotinas de inicialização do servidor...")
     init_db()
+    
+    # 1. Movido o teste de banco de dados para DENTRO do startup seguro
+    try:
+        print("📡 Tentando apertar a mão do Banco de Dados (Neon)...")
+        connection = engine.connect()
+        print("✅ Conexão com o Banco Neon: ESTABELECIDA!")
+        connection.close()
+    except Exception as e:
+        print(f"❌ ERRO FATAL: O Backend não consegue falar com o Banco: {e}")
+
+    # 2. Inicialização do Scheduler preservada como você construiu
+    def run_scheduler():
+        import subprocess
+        # Previne crash se o arquivo scheduler não existir ainda no Render
+        if os.path.exists("scheduler.py"):
+            subprocess.Popen(["python", "scheduler.py"])
+            print("🚀 Agendador disparado em background.")
+        else:
+            print("⚠️ scheduler.py não encontrado, ignorando execução paralela.")
+
+    threading.Thread(target=run_scheduler, daemon=True).start()
+    print("🚀 API Disparada.")
 
 @app.get("/api/scout/status")
 def system_status():
@@ -845,22 +865,3 @@ async def apply_route_adjustment(tenant_id: int, req: AdjustmentRequest, db: Ses
         "message": f"Ajuste de rota aplicado: Prioridade total em {req.format_priority}.",
         "new_strategy_lock": True
     }
-
-@app.on_event("startup")
-def start_schedule():
-    init_db()
-    def run_scheduler():
-        import subprocess
-        subprocess.Popen(["python", "scheduler.py"])
-
-    threading.Thread(target=run_scheduler, daemon=True).start()
-    print("🚀 API e Agendador disparados.")
-
-    # Logo após criar o engine do SQLAlchemy
-try:
-    print("📡 Tentando apertar a mão do Banco de Dados (Neon)...")
-    connection = engine.connect()
-    print("✅ Conexão com o Banco Neon: ESTABELECIDA!")
-    connection.close()
-except Exception as e:
-    print(f"❌ ERRO FATAL: O Backend não consegue falar com o Banco: {e}")
