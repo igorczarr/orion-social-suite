@@ -1,7 +1,9 @@
 import sys
 import os
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from apify_client import ApifyClient
+from dotenv import load_dotenv
 
 # Ajuste de PATH para garantir que o Python encontre as pastas raiz
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -10,7 +12,9 @@ from database.connection import SessionLocal
 from database.models import TrackedProfile, ProfileHistory, Post, PostSnapshot
 
 class OrionWorker:
-    def __init__(self, apify_token):
+    def __init__(self, apify_token: str):
+        if not apify_token:
+            raise ValueError("APIFY_TOKEN ausente. O rastreamento não pode iniciar.")
         self.apify_client = ApifyClient(apify_token)
         self.db = SessionLocal()
 
@@ -19,66 +23,68 @@ class OrionWorker:
         return self.db.query(TrackedProfile).filter(TrackedProfile.is_active == True).all()
 
     def run(self):
-        """Orquestra a coleta completa."""
-        print("\n⚙️ --- INICIANDO WORKER AUTÔNOMO ORION ---")
+        """Orquestra a coleta de inteligência em profundidade."""
+        print("\n⚙️ --- INICIANDO WORKER AUTÔNOMO ORION (MODO SÊNIOR) ---")
         profiles = self.get_active_profiles()
         
         if not profiles:
-            print("⚠️ Nenhum perfil ativo encontrado na base de dados (Sala de Comando vazia).")
+            print("⚠️ Operação cancelada: Nenhum perfil ativo encontrado na base de dados.")
             self.db.close()
             return
 
-        # LIMPEZA CRÍTICA: Remove o '@' dos usernames para evitar falhas no Apify
-        usernames = [p.username.replace('@', '').strip() for p in profiles]
-        print(f"🎯 Alvos identificados ({len(usernames)}): {usernames}")
+        # Limpeza e Deduplicação dos alvos
+        usernames = list(set([p.username.replace('@', '').strip() for p in profiles if p.username]))
+        print(f"🎯 Alvos validados ({len(usernames)}): {usernames}")
 
-        # Prepara a missão para o Apify (Usando o scraper de perfil)
+        # Configuração Estratégica do Scraper
         run_input = {
             "usernames": usernames,
-            "resultsLimit": 30, # Pega até 30 posts por perfil
+            "resultsLimit": 30, # Profundidade ideal para capturar o último mês
         }
 
-        print("⏳ Enviando missão para a nuvem (Apify) - Extraindo histórico profundo...")
+        print("⏳ Infiltrando servidores da Meta via Apify. Isso pode levar alguns minutos...")
+        
         try:
+            # Chama o Ator Sênior da Apify
             actor_run = self.apify_client.actor("apify/instagram-profile-scraper").call(run_input=run_input)
-            dataset_items = self.apify_client.dataset(actor_run["defaultDatasetId"]).list_items().items
-            print(f"✅ Download concluído! {len(dataset_items)} perfis capturados.")
             
-            # Envia para o cérebro processar e salvar
+            print("✅ Missão concluída. Baixando Payload de Inteligência...")
+            dataset_items = self.apify_client.dataset(actor_run["defaultDatasetId"]).list_items().items
+            
             self.process_and_save(dataset_items)
             
         except Exception as e:
-            print(f"❌ Erro fatal na comunicação com o Apify: {e}")
+            print(f"❌ Falha Crítica de Conexão: {e}")
         finally:
             self.db.close()
-            print("🔒 Conexão com o banco encerrada. Worker finalizado.")
+            print("🔒 Conexões encerradas. Cérebro de volta ao repouso.")
 
-    def process_and_save(self, items):
-        """Injeta a inteligência e salva no Banco de Dados (Lendo o formato aninhado)."""
-        print("💾 Processando dados e salvando no Banco Relacional...")
+    def process_and_save(self, items: list):
+        """Processamento de Dados e Triagem Sênior (Rich Media)."""
+        print("💾 Iniciando Triagem e Gravação no Cofre (Banco Relacional)...")
         novos_posts = 0
         novos_snapshots = 0
+        alvos_atualizados = 0
 
         try:
             for profile in items:
-                # 1. Dados do dono do perfil vêm na raiz do objeto agora
                 username = profile.get('username')
-                
                 if not username:
                     continue
                 
-                # Salvar Histórico Diário do Perfil
+                # 1. Snapshot Diário de KPIs do Perfil
                 history = ProfileHistory(
                     username=username,
-                    date=datetime.now(),
-                    followers=profile.get('followersCount', 0),
-                    following=profile.get('followsCount', 0),
-                    posts_count=profile.get('postsCount', 0)
+                    date=datetime.now(timezone.utc),
+                    followers=profile.get('followersCount', 0) or 0,
+                    following=profile.get('followsCount', 0) or 0,
+                    posts_count=profile.get('postsCount', 0) or 0
                 )
                 self.db.add(history)
-                print(f"   📈 Check-in de seguidores para '{username}' registrado: {profile.get('followersCount', 0)} seg.")
+                alvos_atualizados += 1
+                print(f"  📈 KPI Atualizado | @{username}: {history.followers} seguidores.")
 
-                # 2. Puxar os posts (que agora vêm dentro de 'latestPosts')
+                # 2. Mapeamento Profundo do Conteúdo (Rich Media)
                 latest_posts = profile.get('latestPosts', [])
                 
                 for item in latest_posts:
@@ -86,53 +92,70 @@ class OrionWorker:
                     if not shortcode:
                         continue
                     
-                    # Salvar Post Estático (Se for novidade)
+                    # Tenta extrair a data real (Tratamento de Exceção)
+                    try:
+                        timestamp_str = item.get('timestamp', '')[:19]
+                        pub_date = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+                    except ValueError:
+                        pub_date = datetime.now(timezone.utc)
+
+                    # Classificação Estrita de Formato
+                    item_type = item.get('type', 'Image')
+                    media_type = 'Video/Reels' if item_type == 'Video' else 'Carrossel' if item_type == 'Sidecar' else 'Foto'
+                    
+                    # Recupera a Mídia Real para a UI da Arena
+                    display_url = item.get('displayUrl') or item.get('videoUrl') or ''
+                    raw_caption = item.get('caption') or ''
+                    
+                    # Limpa a legenda para guardar apenas a "Copy" real (remove enxame de hashtags se existirem sozinhas no final)
+                    clean_caption = raw_caption.split('#')[0].strip() if '#' in raw_caption and raw_caption.index('#') > len(raw_caption)/2 else raw_caption
+
+                    # Grava o Post (Se for Inédito)
                     post = self.db.query(Post).filter(Post.shortcode == shortcode).first()
                     if not post:
-                        media_type = 'Reels/Video' if item.get('type') == 'Video' else item.get('type', 'Image')
-                        
-                        try:
-                            pub_date = datetime.strptime(item.get('timestamp', '')[:19], "%Y-%m-%dT%H:%M:%S")
-                        except:
-                            pub_date = datetime.now()
-
                         post = Post(
                             shortcode=shortcode,
                             username=username,
                             published_at=pub_date,
                             media_type=media_type,
-                            caption=item.get('caption', ''),
+                            caption=clean_caption,
                             url=item.get('url', f"https://www.instagram.com/p/{shortcode}/")
                         )
                         self.db.add(post)
                         novos_posts += 1
 
-                    # 3. Criar Snapshot de Desempenho (Radar Contínuo)
-                    likes = item.get('likesCount', 0)
-                    comments = item.get('commentsCount', 0)
-                    views = item.get('videoViewCount', 0)
-                    
+                    # 3. Snapshot de Tração (Radar Contínuo)
+                    # O '.get()' com 'or 0' previne falhas caso a API envie 'None'
                     snapshot = PostSnapshot(
                         post_shortcode=shortcode,
-                        date=datetime.now(),
-                        likes=likes,
-                        comments=comments,
-                        views=views
+                        date=datetime.now(timezone.utc),
+                        likes=item.get('likesCount', 0) or 0,
+                        comments=item.get('commentsCount', 0) or 0,
+                        views=item.get('videoViewCount', 0) or 0
                     )
                     self.db.add(snapshot)
                     novos_snapshots += 1
 
-            # Grava tudo de uma vez com segurança
             self.db.commit()
-            print(f"🚀 SUCESSO ABSOLUTO! O Banco da VÉRTICE recebeu: {novos_posts} novos posts e {novos_snapshots} atualizações de métricas.")
+            print("\n============================================================")
+            print(f"🏆 SUCESSO DE INTELIGÊNCIA:")
+            print(f"   • {alvos_atualizados} Perfis Monitorados")
+            print(f"   • {novos_posts} Novos Conteúdos Estratégicos")
+            print(f"   • {novos_snapshots} Atualizações de Tração")
+            print("============================================================")
         
         except Exception as e:
             self.db.rollback() 
-            print(f"❌ Erro ao salvar no banco: {e}")
+            print(f"\n❌ ERRO FATAL de Banco de Dados: Revertendo alterações. Motivo: {e}")
 
 if __name__ == "__main__":
-    # O SEU TOKEN DO APIFY
-    MY_APIFY_TOKEN = os.getenv("APIFY_TOKEN")
+    # Carrega as chaves do cofre (.env)
+    load_dotenv()
     
-    worker = OrionWorker(MY_APIFY_TOKEN)
-    worker.run()
+    API_KEY = os.getenv("APIFY_TOKEN")
+    
+    if API_KEY:
+        worker = OrionWorker(API_KEY)
+        worker.run()
+    else:
+        print("❌ Operação abortada: Chave APIFY_TOKEN não foi detectada no ambiente.")
