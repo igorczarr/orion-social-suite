@@ -47,12 +47,11 @@ app = FastAPI(
     version="2.0.0"
 )
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://orion-social.vercel.app", # URL que a Vercel vai te dar
+        "https://orion-social-suite.vercel.app", # Troque pela sua URL real da Vercel
     ],
     allow_credentials=True,
     allow_methods=["*"],
