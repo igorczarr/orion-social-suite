@@ -19,41 +19,44 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    
+    console.log("🚀 Iniciando tentativa de login...");
+    console.log("📡 Conectando em:", `${API_URL}/login`);
 
     try {
-      // 1. O FastAPI exige URLSearchParams (Form Data) e 'username' em vez de 'email'
       const formData = new URLSearchParams();
       formData.append("username", email);
       formData.append("password", password);
 
-      // 2. Dispara para a API usando a URL dinâmica
       const response = await fetch(`${API_URL}/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData,
       });
+
+      console.log("📥 Resposta recebida. Status:", response.status);
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Acesso negado. Credenciais inválidas.");
+        console.error("❌ Falha na autenticação:", data.detail);
+        throw new Error(data.detail || "Credenciais inválidas.");
       }
 
-      // 3. Salva a Chave Mestra
+      console.log("🔑 Token gerado com sucesso! Salvando...");
       localStorage.setItem("orion_token", data.access_token);
       
-      // 4. Redirecionamento correto usando Next.js Router
-      router.push("/dashboard");
+      console.log("✈️ Redirecionando para Dashboard...");
+      window.location.href = "/dashboard"; // Força bruta para garantir a navegação
       
     } catch (err: any) {
-      console.error("Erro no Login:", err);
-      setError(err.message || "Erro de conexão com os servidores Vrtice.");
-      setIsLoading(false); // Só desativa o loading se der erro, senão a tela pisca
+      console.error("💥 ERRO NO PROCESSO:", err);
+      setError(err.message || "Erro de conexão. O servidor pode estar acordando...");
+    } finally {
+      setIsLoading(false);
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
       
