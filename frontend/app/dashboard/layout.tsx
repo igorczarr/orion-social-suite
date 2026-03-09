@@ -7,13 +7,14 @@ import {
   Moon, Sun, Droplet, Fingerprint
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogoVrtice } from "@/components/LogoVrtice";
+import { usePathname, useRouter } from "next/navigation";
 import { TenantProvider } from "@/contexts/TenantContext";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
 
   // === MOTOR DE TEMA ===
   const [activeTheme, setActiveTheme] = useState("dark");
@@ -23,10 +24,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.documentElement.setAttribute("data-theme", theme);
   };
 
-  // Garante que o tema dark é carregado por padrão
+  // === VALIDAÇÃO DE SEGURANÇA E INICIALIZAÇÃO ===
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", "dark");
-  }, []);
+    
+    // Verifica se o usuário tem a chave de acesso (Token)
+    const token = localStorage.getItem("orion_token");
+    if (!token) {
+      router.push("/login");
+    } else {
+      setIsAuthenticating(false);
+    }
+  }, [router]);
+
+  // Função para Desconectar
+  const handleLogout = () => {
+    localStorage.removeItem("orion_token");
+    router.push("/login");
+  };
+
+  // Tela de transição enquanto verifica a segurança (Evita o flash da tela com mocks)
+  if (isAuthenticating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-v-black flex-col">
+        <div className="w-8 h-8 border-2 border-v-gold border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-[10px] text-v-gold tracking-[0.2em] uppercase">Autenticando Sessão...</p>
+      </div>
+    );
+  }
 
   return (
     <TenantProvider>
@@ -43,15 +68,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
 
-          {/* Topo: Logo (Com text-v-white-off para que o currentColor funcione) */}
-          <div className={`p-6 flex ${isCollapsed ? 'justify-center' : 'justify-start'} border-b border-v-white-off/5 transition-all duration-500 overflow-hidden h-24 items-center text-v-white-off`}>
+          {/* Topo: Logo Corrigida (Apontando para a pasta public) */}
+          <div className={`p-6 flex ${isCollapsed ? 'justify-center' : 'justify-start'} border-b border-v-white-off/5 transition-all duration-500 overflow-hidden h-24 items-center`}>
             {isCollapsed ? (
               <div className="w-10 h-10 flex items-center justify-center hover:scale-110 transition-transform">
-                <LogoVrtice className="w-full h-full" symbolOnly={true} />
+                <img src="/logo-vrtice.png" alt="VRTICE" className="w-full h-full object-contain" />
               </div>
             ) : (
               <div className="w-32 h-auto shrink-0">
-                 <LogoVrtice className="w-full h-full" />
+                <img src="/logo-vrtice.png" alt="VRTICE" className="w-full h-full object-contain" />
               </div>
             )}
           </div>
@@ -94,7 +119,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
 
             <NavItem href="/settings" icon={<Settings size={20} />} label="Configurações" collapsed={isCollapsed} active={pathname === "/settings"} />
-            <button className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-3 py-3 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-sm transition-all duration-300 font-montserrat text-sm group`}>
+            
+            {/* Botão de Logout Funcional */}
+            <button 
+              onClick={handleLogout}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-3 px-3 py-3 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-sm transition-all duration-300 font-montserrat text-sm group`}
+            >
               <LogOut size={20} className="group-hover:-translate-x-1 transition-transform" />
               {!isCollapsed && <span>Desconectar</span>}
             </button>
@@ -103,7 +133,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* ÁREA CENTRAL */}
         <main className="flex-1 relative overflow-y-auto bg-v-black transition-colors duration-300">
-          <div className="absolute top-0 right-0 w-200 h-200 bg-v-gold/5 blur-[200px] rounded-full pointer-events-none"></div>
+          <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-v-gold/5 blur-[120px] rounded-full pointer-events-none"></div>
           <div className="p-8 md:p-12 w-full mx-auto relative z-10 min-h-full">
             {children}
           </div>

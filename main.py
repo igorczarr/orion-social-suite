@@ -677,33 +677,138 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
 
 @app.get("/api/oracle/{tenant_id}")
 def get_oracle_predictions(tenant_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Motor Preditivo Conservador (Oráculo 2.0): 
+    Aplica Regressão Linear sobre o histórico de base para calcular 
+    tendência (slope) e prever desgaste (fatigue) ou crescimento.
+    """
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
 
     username_limpo = tenant.social_handle.replace('@', '')
+    
+    # =====================================================================
+    # 1. REGRESSÃO LINEAR PARA PREVISÃO DE CRESCIMENTO (Fator Conservador)
+    # =====================================================================
+    historico = db.query(ProfileHistory).filter(ProfileHistory.username == username_limpo).order_by(ProfileHistory.date).all()
+    
+    predicted_growth = 0
+    audience_quality = "Fria"
+    
+    if len(historico) > 2:
+        # x = dias (índice), y = seguidores
+        n = len(historico)
+        x_vals = list(range(n))
+        y_vals = [h.followers for h in historico]
+        
+        x_mean = sum(x_vals) / n
+        y_mean = sum(y_vals) / n
+        
+        # Calcula a inclinação (beta_1)
+        numerador = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_vals, y_vals))
+        denominador = sum((x - x_mean)**2 for x in x_vals)
+        
+        beta_1 = numerador / denominador if denominador != 0 else 0
+        
+        # Projeção para os próximos 30 dias com Fator de Amortecimento Conservador (80%)
+        predicted_growth = int((beta_1 * 30) * 0.8)
+        
+        # Classificação baseada na taxa de ganho diário
+        if beta_1 > 10: audience_quality = "Em Escala"
+        elif beta_1 > 0: audience_quality = "Aquecida"
+        else: audience_quality = "Fria/Estagnada"
+    else:
+        predicted_growth = 0
+        
+    # =====================================================================
+    # 2. ANÁLISE DE FADIGA DE FORMATO (Regressão de Engajamento)
+    # =====================================================================
     posts_db = db.query(Post).filter(Post.username == username_limpo).order_by(desc(Post.published_at)).limit(30).all()
     
-    format_stats = defaultdict(lambda: {'count': 0, 'likes_recent': 0, 'likes_old': 0})
-    meio = len(posts_db) // 2 if len(posts_db) > 0 else 0
+    format_stats = defaultdict(lambda: {'x': [], 'y': []})
+    
+    # Inverte para ordem cronológica (do mais antigo pro mais novo)
+    posts_db.reverse()
     
     for i, p in enumerate(posts_db):
         snap = db.query(PostSnapshot).filter(PostSnapshot.post_shortcode == p.shortcode).order_by(desc(PostSnapshot.date)).first()
         likes = snap.likes if snap else 0
-        formato = "Reels" if "Video" in p.media_type else "Foto"
-        format_stats[formato]['count'] += 1
-        if i < meio: format_stats[formato]['likes_recent'] += likes
-        else: format_stats[formato]['likes_old'] += likes
+        
+        formato = "Reels" if "Video" in p.media_type else "Carrossel" if "Sidecar" in p.media_type else "Foto"
+        format_stats[formato]['x'].append(i)
+        format_stats[formato]['y'].append(likes)
 
     fatigue_data = []
+    best_format = "N/A"
+    highest_growth = -999
+
     for fmt, data in format_stats.items():
-        growth = ((data['likes_recent'] - data['likes_old']) / data['likes_old'] * 100) if data['likes_old'] > 0 else 0
-        fatigue_data.append({"format": fmt, "growth": round(growth, 1)})
+        n_fmt = len(data['x'])
+        if n_fmt > 2: # Exige pelo menos 3 posts do formato para gerar estatística
+            x_vals = data['x']
+            y_vals = data['y']
+            x_mean = sum(x_vals) / n_fmt
+            y_mean = sum(y_vals) / n_fmt
+            
+            num = sum((x - x_mean) * (y - y_mean) for x, y in zip(x_vals, y_vals))
+            den = sum((x - x_mean)**2 for x in x_vals)
+            slope = num / den if den != 0 else 0
+            
+            # Transformando a inclinação em uma Taxa de Crescimento (%)
+            growth = (slope / y_mean * 100) if y_mean > 0 else 0
+            
+            if growth > highest_growth:
+                highest_growth = growth
+                best_format = fmt
+            
+            status = "Em Ascensão" if growth > 5 else "Estagnado" if growth > -5 else "Fadiga Alta"
+            forecast = f"+{int(growth)}% Tração" if growth > 0 else f"{int(growth)}% Tração"
+            rec = "Dobrar frequência" if growth > 5 else "Manter" if growth > -5 else "Pausar formato"
+            
+            fatigue_data.append({
+                "id": fmt,
+                "format": fmt,
+                "status": status,
+                "forecast": forecast,
+                "recommendation": rec,
+                "growth": round(growth, 1)
+            })
+
+    if not fatigue_data:
+        fatigue_data = [{"id": 1, "format": "Aguardando Dados", "status": "Sem Dados", "forecast": "0%", "recommendation": "Publique mais para calibrar a IA", "growth": 0}]
+
+    # =====================================================================
+    # 3. HEATMAP DE HORÁRIOS (Matriz de Oportunidade)
+    # =====================================================================
+    heatmap = {
+        "Ter": {"Manhã": 5, "Tarde": 5, "Noite": 5},
+        "Qua": {"Manhã": 5, "Tarde": 5, "Noite": 5},
+        "Qui": {"Manhã": 5, "Tarde": 5, "Noite": 5}
+    }
+    
+    for p in posts_db:
+        snap = db.query(PostSnapshot).filter(PostSnapshot.post_shortcode == p.shortcode).order_by(desc(PostSnapshot.date)).first()
+        likes = snap.likes if snap else 0
+        
+        dias = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+        dia = dias[p.published_at.weekday()]
+        hora = p.published_at.hour
+        periodo = "Manhã" if hora < 12 else "Tarde" if hora < 18 else "Noite"
+        
+        if dia in heatmap:
+            # Adiciona calor dinâmico (com cap de 95 para segurança de CSS)
+            heatmap[dia][periodo] = min(heatmap[dia][periodo] + (likes / 10), 95)
 
     return {
-        "metrics": {"fatigue_risk": "Baixo"},
+        "metrics": {
+            "predicted_growth": f"+{predicted_growth}" if predicted_growth >= 0 else str(predicted_growth),
+            "fatigue_risk": "Alto" if highest_growth < 0 else "Baixo",
+            "best_format": best_format,
+            "audience_quality": audience_quality
+        },
         "fatigue": fatigue_data,
-        "heatmap": {"Ter": {"Noite": 80}}
+        "heatmap": heatmap
     }
 
 @app.post("/api/dashboard/{tenant_id}/apply-adjustment")
