@@ -13,7 +13,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   // CONEXÃO COM A NUVEM: Puxa a URL do ambiente (Vercel) ou usa local para dev
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://httpbin.org/post";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +56,7 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-  
+
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden">
       

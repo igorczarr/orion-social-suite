@@ -35,7 +35,7 @@ if not GEMINI_API_KEY:
     print("⚠️ ALERTA: GEMINI_API_KEY não encontrada nas variáveis de ambiente.")
 
 # --- CONFIGURAÇÕES DE SEGURANÇA ---
-SECRET_KEY = "uma_chave_secreta_muito_segura_e_longa_para_a_vertice"
+SECRET_KEY = "uma_chave_secreta_muito_segura_VRTICE_2026"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440 
 
@@ -49,7 +49,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Libera geral temporariamente para teste
+    allow_origin_regex=r"https://.*\.vercel\.app", # Libera qualquer subdominio da Vercel
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,11 +131,30 @@ def system_status():
 
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
-    return {"access_token": access_token, "token_type": "bearer"}
+    print(f"--- 📥 Tentativa de login para o usuário: {form_data.username} ---")
+    
+    try:
+        # 1. Busca o usuário
+        user = db.query(User).filter(User.email == form_data.username).first()
+        if not user:
+            print("--- ❌ Usuário não encontrado no banco ---")
+            raise HTTPException(status_code=401, detail="Credenciais Inválidas")
+
+        # 2. Verifica a senha (ajuste conforme sua biblioteca de hash, ex: passlib)
+        if not verify_password(form_data.password, user.hashed_password):
+            print(f"--- ❌ Senha incorreta para: {form_data.username} ---")
+            raise HTTPException(status_code=401, detail="Credenciais Inválidas")
+
+        # 3. Gera o Token (Aqui é onde a SECRET_KEY é usada)
+        print("--- 🔑 Gerando Access Token... ---")
+        access_token = create_access_token(data={"sub": user.email})
+        
+        print("--- ✅ Login bem-sucedido! ---")
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except Exception as e:
+        print(f"--- 💥 ERRO CRÍTICO NO LOGIN: {str(e)} ---")
+        raise HTTPException(status_code=500, detail="Erro interno no servidor")
 
 # --- ROTAS DO NOVO COFRE (MULTI-TENANT) ---
 
@@ -836,3 +855,12 @@ def start_schedule():
 
     threading.Thread(target=run_scheduler, daemon=True).start()
     print("🚀 API e Agendador disparados.")
+
+    # Logo após criar o engine do SQLAlchemy
+try:
+    print("📡 Tentando apertar a mão do Banco de Dados (Neon)...")
+    connection = engine.connect()
+    print("✅ Conexão com o Banco Neon: ESTABELECIDA!")
+    connection.close()
+except Exception as e:
+    print(f"❌ ERRO FATAL: O Backend não consegue falar com o Banco: {e}")
