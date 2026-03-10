@@ -7,6 +7,7 @@ import bcrypt
 import asyncio
 import threading
 import os
+import feedparser
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import List, Optional
@@ -18,6 +19,7 @@ from modules.analytics.ai_engine import AIEngine
 from modules.workers.trend_scraper import OmnidirectionalRadar
 from collections import defaultdict
 from modules.workers.apify_worker import OrionWorker
+from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 
 load_dotenv() # Carrega o arquivo .env
 
@@ -50,6 +52,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_real_time_trends():
+    """Busca as tendências reais do Google Trends Brasil em menos de 1 segundo."""
+    try:
+        url = "https://trends.google.com/trends/trendingsearches/daily/rss?geo=BR"
+        feed = feedparser.parse(url)
+        trends = []
+        for i, entry in enumerate(feed.entries[:5]):
+            # Limpa o tráfego estimado (ex: "100K+ searches")
+            heat = entry.get('ht_approx_traffic', 'Alto').replace('+', '').replace('searches', '').strip()
+            trends.append({
+                "rank": i + 1,
+                "topic": entry.title,
+                "category": "Viral Global",
+                "heat": heat
+            })
+        return trends
+    except Exception as e:
+        print(f"Erro no Radar Global: {e}")
+        return [{"rank": 1, "topic": "Falha no Radar", "category": "Erro", "heat": "Baixo"}]
 
 def get_db():
     db = SessionLocal()
@@ -660,13 +683,13 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
         })
 
     # ==========================================
-    # 4. RADAR DE PERSONA E TENDÊNCIAS
+    # 4. RADAR DE PERSONA E TENDÊNCIAS REAIS
     # ==========================================
     insights = db.query(SocialInsight).filter(SocialInsight.tenant_id == tenant.id).order_by(desc(SocialInsight.created_at)).limit(5).all()
     radar_data = [{"quote": ins.quote, "category": ins.category, "platform": ins.platform} for ins in insights]
 
-    keywords = tenant.keywords.split(',') if tenant.keywords else ["Tendências Globais"]
-    global_trends = [{"rank": i+1, "topic": kw.strip(), "category": "Nicho", "heat": "Alto"} for i, kw in enumerate(keywords[:4])]
+    # Substituímos o mock pelas tendências reais da internet:
+    global_trends = get_real_time_trends()
 
     # ==========================================
     # 5. INTELIGÊNCIA SINTÉTICA (O Cérebro)
@@ -864,4 +887,48 @@ async def apply_route_adjustment(tenant_id: int, req: AdjustmentRequest, db: Ses
         "status": "success",
         "message": f"Ajuste de rota aplicado: Prioridade total em {req.format_priority}.",
         "new_strategy_lock": True
+    }
+
+@app.post("/api/workers/force-sync/{tenant_id}")
+async def force_scheduler_sync(
+    tenant_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    FORÇA O DISPARO DO MOTOR LÓGICO:
+    Esta rota ignora o cronograma do scheduler e executa o OrionWorker 
+    imediatamente para o cliente selecionado.
+    """
+    # 1. Validação de Segurança Sênior
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado ou acesso negado.")
+
+    # 2. Definição da tarefa pesada (O robô em si)
+    def start_engine():
+        print(f"🚀 [ENGINE] Disparo manual acionado para: {tenant.name}")
+        try:
+            if not APIFY_TOKEN:
+                print("❌ ERRO: APIFY_TOKEN não configurado no servidor.")
+                return
+
+            # Instanciamos o Worker e rodamos a extração completa
+            # Isso vai atualizar TrackedProfiles, Posts e Insights no banco Neon
+            worker = OrionWorker(APIFY_TOKEN)
+            worker.run()
+            
+            print(f"✅ [ENGINE] Sincronização concluída com sucesso para {tenant.name}")
+        except Exception as e:
+            print(f"💥 [ENGINE] Falha crítica na execução manual: {str(e)}")
+
+    # 3. Adiciona à fila de segundo plano do FastAPI
+    # Isso libera o botão no frontend instantaneamente enquanto o Python trabalha atrás
+    background_tasks.add_task(start_engine)
+
+    return {
+        "status": "success", 
+        "message": "Motor Orion acionado. A base de dados será populada em instantes.",
+        "estimated_time": "2-5 minutos"
     }

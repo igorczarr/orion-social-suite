@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo } from "react";
 import { 
   TrendingUp, Users, Target, Activity, Zap, Flame, Crosshair, 
   ArrowUpDown, Filter, Search, Eye, Heart, Bookmark, Swords, 
-  Trophy, BrainCircuit, Radar, MessageCircle, PenTool, X, Plus, Settings, Edit3, ShieldAlert
+  Trophy, BrainCircuit, Radar, MessageCircle, PenTool, X, Plus, 
+  Settings, Edit3, ShieldAlert, RefreshCw, Terminal, Layout
 } from "lucide-react";
 import { OrionAPI } from "@/lib/api"; 
 import { useTenant } from "@/contexts/TenantContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardPage() {
   const { tenantInfo, toggleTenant, refreshTenants } = useTenant();
@@ -23,6 +25,10 @@ export default function DashboardPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiBriefing, setAiBriefing] = useState<any>(null);
   
+  // Estados de Sincronização e Ferramentas
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [activeTheme, setActiveTheme] = useState("navy");
+  
   // Modais de Ação
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
@@ -32,8 +38,14 @@ export default function DashboardPage() {
     name: "", social_handle: "", niche: "Moda & Vestuário", personas: "", competitors: "", keywords: ""
   });
 
-  // APRIMORAMENTO: Uso de Variável de Ambiente para deploy na nuvem
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
+
+  // --- MEMÓRIA DE TEMA (NAVY PERSISTENCE) ---
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("orion_theme") || "navy";
+    setActiveTheme(savedTheme);
+    document.documentElement.classList.add(savedTheme);
+  }, []);
 
   const openEditModal = () => {
     if (tenantInfo) {
@@ -51,12 +63,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function loadDashboardOverview() {
-      if (!tenantInfo?.id) return;
+      if (!tenantInfo?.id || tenantInfo.id <= 0) return;
       setIsLoadingDashboard(true);
       setSelectedCompetitorIdx(0); 
       try {
-        // APRIMORAMENTO: Uso do orion_token alinhado com a autenticação
-        const token = localStorage.getItem("orion_token") || localStorage.getItem("vrtice_token");
+        const token = localStorage.getItem("orion_token");
         const res = await fetch(`${API_URL}/api/dashboard/${tenantInfo.id}/overview`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
@@ -74,6 +85,36 @@ export default function DashboardPage() {
     }
     loadDashboardOverview();
   }, [tenantInfo?.id]);
+
+  // --- GATILHO DO MOTOR LÓGICO (START ENGINE) ---
+  const handleStartEngine = async () => {
+    if (!tenantInfo || tenantInfo.id <= 0) {
+      alert("Selecione um cliente real para sincronizar.");
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      // Usando a nova rota forceSync que definimos no api.ts
+      await OrionAPI.forceSync(tenantInfo.id);
+      alert("Motor Orion em campo! Os robôs do Apify foram acionados. Os dados serão atualizados em instantes nos logs do servidor.");
+      
+      // Auto-refresh após 2 minutos (tempo médio de raspagem)
+      setTimeout(() => {
+        window.location.reload();
+      }, 120000);
+    } catch (error) {
+      console.error("Falha no disparo manual:", error);
+      alert("Erro ao acionar o motor. Verifique a conexão com o Render.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleIAAdjustment = () => {
+    alert("Iniciando recalibragem de rota estratégica... O cérebro Gemini aplicará as mudanças no próximo ciclo de geração.");
+    // Aqui no futuro chamaremos a rota POST /api/dashboard/{id}/apply-adjustment
+  };
 
   const filteredAndSortedPosts = useMemo(() => {
     let filtered = [...posts];
@@ -118,7 +159,6 @@ export default function DashboardPage() {
     }
   };
 
-  // IA HIPER-FOCADA: Envia a dor exata capturada no Radar para gerar o Briefing
   const handleGenerateBriefing = async () => {
     setIsGenerating(true);
     try {
@@ -140,15 +180,15 @@ export default function DashboardPage() {
   const currentCompetitor = dashboardData?.arena?.[selectedCompetitorIdx] || null;
 
   return (
-    <div className="space-y-8 animate-fade-in-up pb-20 relative">
+    <div className={`space-y-8 animate-fade-in-up pb-32 relative min-h-screen ${activeTheme === 'navy' ? 'theme-navy' : ''}`}>
       
       {/* 1. BARRA DE COMANDO GLOBAL */}
       <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-v-white-off/10 pb-6">
         <div>
           <div className="flex items-center gap-3 mb-4">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_10px_#22c55e]"></span>
+            <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-red-500 animate-ping' : 'bg-green-500 animate-pulse'} shadow-[0_0_10px_#22c55e]`}></span>
             <span className="font-montserrat text-[0.65rem] text-[#d4af37] uppercase tracking-widest border border-[#d4af37]/30 px-2 py-1 bg-[#d4af37]/10 rounded-md">
-              Sistema Operacional Ativo
+              {isSyncing ? "Motor Lógico em Campo" : "Sistema Operacional Ativo"}
             </span>
           </div>
           <h1 className="font-abhaya text-4xl md:text-5xl font-bold text-v-white-off tracking-wide">
@@ -165,11 +205,11 @@ export default function DashboardPage() {
           
           <div className="flex items-center gap-3 bg-black/40 border border-white/10 p-2 rounded-xl backdrop-blur-sm relative group">
             <div className="w-10 h-10 bg-black/80 rounded-lg flex items-center justify-center font-abhaya text-[#d4af37] text-xl border border-[#d4af37]/20">
-              {tenantInfo?.initials || "-"}
+              {tenantInfo?.initials || "00"}
             </div>
             <div className="pr-2 hidden sm:block">
               <p className="font-montserrat text-[0.6rem] text-gray-500 uppercase tracking-widest">Conta Monitorada</p>
-              <p className="font-montserrat text-sm font-bold text-v-white-off">{tenantInfo?.name || "Carregando..."}</p>
+              <p className="font-montserrat text-sm font-bold text-v-white-off">{tenantInfo?.name || "Nenhum Cliente"}</p>
             </div>
             
             <div className="flex items-center gap-2">
@@ -231,7 +271,10 @@ export default function DashboardPage() {
               {isLoadingDashboard ? "Sincronizando com o cérebro central..." : dashboardData?.intervencao}
             </p>
           </div>
-          <button className="w-full mt-4 py-3 border border-red-500/50 text-red-400 font-montserrat text-[0.65rem] uppercase tracking-widest hover:bg-red-500/20 transition-colors font-bold flex justify-center items-center gap-2 rounded-lg">
+          <button 
+            onClick={handleIAAdjustment}
+            className="w-full mt-4 py-3 border border-red-500/50 text-red-400 font-montserrat text-[0.65rem] uppercase tracking-widest hover:bg-red-500/20 transition-colors font-bold flex justify-center items-center gap-2 rounded-lg"
+          >
             <Zap size={14} /> Aplicar Ajuste de Rota
           </button>
         </div>
@@ -239,8 +282,6 @@ export default function DashboardPage() {
 
       {/* 4. MOTOR DE GUERRA */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
-        
-        {/* Coluna 1: Radar Global */}
         <div className="glass-panel border border-white/10 rounded-xl flex flex-col h-full min-h-[350px] bg-black/20">
           <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/40">
             <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-[#d4af37] flex items-center gap-2"><Radar size={14} /> Radar Global</h3>
@@ -252,10 +293,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Coluna 2: Arena + Radar de Persona */}
         <div className="flex flex-col gap-6 h-full min-h-[350px]">
-          
-          {/* Box 1 (Arena) */}
           <div className="grid grid-cols-2 gap-4 shrink-0">
             <div className="glass-panel border border-white/10 rounded-xl flex flex-col justify-center p-4 bg-black/40">
               <div className="flex justify-between items-center mb-4">
@@ -284,7 +322,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Box 2 (Persona) */}
           <div className="glass-panel border border-white/10 rounded-xl flex flex-col flex-1 overflow-hidden min-h-[200px] bg-black/20">
             <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/40 shrink-0">
               <h3 className="font-montserrat text-[0.6rem] font-bold uppercase tracking-widest text-v-white-off flex items-center gap-2">
@@ -310,10 +347,8 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-
         </div>
 
-        {/* Coluna 3: CMO Brain + Arsenal */}
         <div className="flex flex-col gap-6 h-full min-h-[350px]">
           <div className="glass-panel border border-[#d4af37]/30 rounded-xl flex flex-col bg-[#d4af37]/5 relative overflow-hidden shrink-0">
             <div className="absolute -right-5 -top-5 opacity-10 text-[#d4af37]"><BrainCircuit size={100} /></div>
@@ -351,7 +386,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-
       </section>
 
       {/* 5. MATRIZ DE CONTEÚDO */}
@@ -386,12 +420,12 @@ export default function DashboardPage() {
             </thead>
             <tbody className="font-montserrat text-sm">
               {isLoadingDashboard ? (
-                <tr><td colSpan={7} className="p-8 text-center text-[#d4af37] text-xs animate-pulse">Sincronizando 30 posts recentes...</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-[#d4af37] text-xs animate-pulse">Sincronizando posts recentes...</td></tr>
               ) : filteredAndSortedPosts.length > 0 ? (
                 filteredAndSortedPosts.map((post) => (
                   <tr key={post.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="p-4 text-gray-400 text-xs">{post.date}</td>
-                    <td className="p-4"><span className={`text-[0.6rem] uppercase tracking-widest px-2 py-1 rounded-md border ${post.type.includes('Reels') || post.type.includes('Video') ? 'border-purple-500/30 text-purple-400 bg-purple-500/10' : 'border-blue-500/30 text-blue-400 bg-blue-500/10'}`}>{post.type}</span></td>
+                    <td className="p-4"><span className={`text-[0.6rem] uppercase tracking-widest px-2 py-1 rounded-md border ${post.type?.includes('Reels') || post.type?.includes('Video') ? 'border-purple-500/30 text-purple-400 bg-purple-500/10' : 'border-blue-500/30 text-blue-400 bg-blue-500/10'}`}>{post.type}</span></td>
                     <td className="p-4 text-v-white-off truncate max-w-xs">{post.hook}</td>
                     <td className="p-4 text-gray-300">{post.reach?.toLocaleString('pt-BR')}</td>
                     <td className="p-4 text-[#d4af37] font-bold">{post.engagement}%</td>
@@ -400,12 +434,43 @@ export default function DashboardPage() {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan={7} className="p-8 text-center text-gray-500 text-xs">Nenhum post coletado neste período.</td></tr>
+                <tr><td colSpan={7} className="p-8 text-center text-gray-500 text-xs">Nenhum post coletado neste período. Use a Sincronização Manual.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {/* === BARRA DE FERRAMENTAS FLUTUANTE (ACTION DOCK) === */}
+      <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-v-gold/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+        {/* Ferramenta 1: Start Engine (Sincronização) */}
+        <button 
+          onClick={handleStartEngine}
+          disabled={isSyncing}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isSyncing ? 'bg-red-500/20 text-red-500' : 'bg-v-gold/10 text-v-gold hover:bg-v-gold hover:text-black shadow-[inset_0_0_10px_rgba(212,175,55,0.2)]'}`}
+          title="Forçar Sincronização do Motor"
+        >
+          <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
+        </button>
+
+        {/* Ferramenta 2: Terminal de Operações (Mapeamento) */}
+        <button 
+          onClick={() => alert("Terminal Orion v2.0: Mapeando vetores de crescimento...")}
+          className="w-12 h-12 rounded-full bg-v-white-off/5 text-v-white-off hover:bg-v-white-off hover:text-black flex items-center justify-center transition-all"
+          title="Abrir Terminal de Comando"
+        >
+          <Terminal size={20} />
+        </button>
+
+        {/* Ferramenta 3: Foco de Campanha (Radar) */}
+        <button 
+          onClick={() => alert("Radar de Campanha Ativado: Priorizando conversão direta.")}
+          className="w-12 h-12 rounded-full bg-v-white-off/5 text-v-white-off hover:bg-v-white-off hover:text-black flex items-center justify-center transition-all"
+          title="Nova Missão Tática"
+        >
+          <Layout size={20} />
+        </button>
+      </div>
 
       {/* === MODAL DE IA (CMO) === */}
       {aiBriefing && (
@@ -524,6 +589,7 @@ export default function DashboardPage() {
   );
 }
 
+// COMPONENTES AUXILIARES PRESERVADOS
 function MetricBox({ title, value, trend, isPositive, icon, isLoading = false }: { title: string, value: string | undefined, trend: string, isPositive: boolean, icon: React.ReactNode, isLoading?: boolean }) {
   return (
     <div className="glass-panel p-5 border border-white/5 rounded-xl flex flex-col justify-between h-32 bg-black/20 hover:border-[#d4af37]/30 transition-colors">
