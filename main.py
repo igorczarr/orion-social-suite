@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -19,7 +19,6 @@ from modules.analytics.ai_engine import AIEngine
 from modules.workers.trend_scraper import OmnidirectionalRadar
 from collections import defaultdict
 from modules.workers.apify_worker import OrionWorker
-from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 
 load_dotenv() # Carrega o arquivo .env
 
@@ -932,3 +931,28 @@ async def force_scheduler_sync(
         "message": "Motor Orion acionado. A base de dados será populada em instantes.",
         "estimated_time": "2-5 minutos"
     }
+
+# --- ROTA DE DISPARO DO MOTOR (START ENGINE) ---
+@app.post("/api/workers/force-sync/{tenant_id}")
+async def force_scheduler_sync(
+    tenant_id: int, 
+    background_tasks: BackgroundTasks, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Gatilho manual para o Scheduler Orion."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    def run_engine():
+        print(f"🚀 [ENGINE] Iniciando coleta forçada para {tenant.name}")
+        try:
+            worker = OrionWorker(APIFY_TOKEN)
+            worker.run()
+            print(f"✅ [ENGINE] Sincronização manual finalizada.")
+        except Exception as e:
+            print(f"❌ [ENGINE] Falha no motor: {e}")
+
+    background_tasks.add_task(run_engine)
+    return {"status": "success", "message": "Motor acionado em background."}

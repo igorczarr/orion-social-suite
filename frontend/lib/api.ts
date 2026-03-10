@@ -75,8 +75,9 @@ export const OrionAPI = {
       body: JSON.stringify({ trend_topic: trendTopic, competitor: competitor })
     }),
     
+  // Garanta que o nome seja 'force-sync' para bater com o backend acima
   forceSync: (tenantId: number) => 
-  fetchAPI(`/api/workers/force-sync/${tenantId}`, { method: "POST" }),
+    fetchAPI(`/api/workers/force-sync/${tenantId}`, { method: "POST" }),
 
   // === NOVAS ARMAS LIGADAS AO MOTOR MULTI-TENANT E NOVAS TELAS ===
 
