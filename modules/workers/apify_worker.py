@@ -18,27 +18,43 @@ class OrionWorker:
         self.apify_client = ApifyClient(apify_token)
         self.db = SessionLocal()
 
-    def get_active_profiles(self):
-        """Busca no Banco de Dados a lista de perfis que o sistema deve rastrear."""
-        return self.db.query(TrackedProfile).filter(TrackedProfile.is_active == True).all()
+    def clean_user(self, name: str) -> str:
+        """
+        [SÊNIOR] Normalização de Dados:
+        Remove arrobas, links e espaços para garantir o match perfeito no Dashboard.
+        """
+        if not name: return ""
+        return name.replace('https://www.instagram.com/', '') \
+                   .replace('https://instagram.com/', '') \
+                   .replace('@', '') \
+                   .replace('/', '') \
+                   .strip().lower()
 
-    def run(self):
+    def run(self, target_tenant_id=None):
         """Orquestra a coleta de inteligência em profundidade."""
         print("\n⚙️ --- INICIANDO WORKER AUTÔNOMO ORION (MODO SÊNIOR) ---")
-        profiles = self.get_active_profiles()
+        
+        # Filtragem Tática: Define se varre a base toda (Madrugada) ou apenas um cliente (Botão do Dashboard)
+        query = self.db.query(TrackedProfile).filter(TrackedProfile.is_active == True)
+        if target_tenant_id:
+            query = query.filter(TrackedProfile.tenant_id == target_tenant_id)
+            print(f"🎯 [FOCO] Rastreador direcionado exclusivamente para o Tenant ID: {target_tenant_id}")
+            
+        profiles = query.all()
         
         if not profiles:
-            print("⚠️ Operação cancelada: Nenhum perfil ativo encontrado na base de dados.")
+            print("⚠️ Operação cancelada: Nenhum perfil ativo encontrado na base de dados para este escopo.")
             self.db.close()
             return
 
-        # Limpeza e Deduplicação dos alvos
-        usernames = list(set([p.username.replace('@', '').strip() for p in profiles if p.username]))
-        print(f"🎯 Alvos validados ({len(usernames)}): {usernames}")
+        # Limpeza e Deduplicação dos alvos (Usa a função Sênior)
+        usernames = list(set([self.clean_user(p.username) for p in profiles if p.username]))
+        print(f"🎯 Alvos validados e limpos ({len(usernames)}): {usernames}")
 
         # Configuração Estratégica do Scraper
         run_input = {
             "usernames": usernames,
+            "resultsType": "details", # FORÇA o Apify a trazer os dados completos do perfil
             "resultsLimit": 30, # Profundidade ideal para capturar o último mês
         }
 
@@ -54,7 +70,7 @@ class OrionWorker:
             self.process_and_save(dataset_items)
             
         except Exception as e:
-            print(f"❌ Falha Crítica de Conexão: {e}")
+            print(f"❌ Falha Crítica de Conexão com Apify: {e}")
         finally:
             self.db.close()
             print("🔒 Conexões encerradas. Cérebro de volta ao repouso.")
@@ -68,9 +84,12 @@ class OrionWorker:
 
         try:
             for profile in items:
-                username = profile.get('username')
-                if not username:
+                raw_username = profile.get('username')
+                if not raw_username:
                     continue
+                
+                # Normaliza o username recebido do Apify para alinhar com o nosso banco
+                username = self.clean_user(raw_username)
                 
                 # 1. Snapshot Diário de KPIs do Perfil
                 history = ProfileHistory(
@@ -107,7 +126,7 @@ class OrionWorker:
                     display_url = item.get('displayUrl') or item.get('videoUrl') or ''
                     raw_caption = item.get('caption') or ''
                     
-                    # Limpa a legenda para guardar apenas a "Copy" real (remove enxame de hashtags se existirem sozinhas no final)
+                    # Limpa a legenda para guardar apenas a "Copy" real (remove enxame de hashtags)
                     clean_caption = raw_caption.split('#')[0].strip() if '#' in raw_caption and raw_caption.index('#') > len(raw_caption)/2 else raw_caption
 
                     # Grava o Post (Se for Inédito)
@@ -115,17 +134,18 @@ class OrionWorker:
                     if not post:
                         post = Post(
                             shortcode=shortcode,
-                            username=username,
+                            username=username, # Salva o username limpo!
                             published_at=pub_date,
                             media_type=media_type,
                             caption=clean_caption,
                             url=item.get('url', f"https://www.instagram.com/p/{shortcode}/")
                         )
                         self.db.add(post)
+                        # Flush avisa o banco da existência deste post antes de salvar o Snapshot associado
+                        self.db.flush() 
                         novos_posts += 1
 
                     # 3. Snapshot de Tração (Radar Contínuo)
-                    # O '.get()' com 'or 0' previne falhas caso a API envie 'None'
                     snapshot = PostSnapshot(
                         post_shortcode=shortcode,
                         date=datetime.now(timezone.utc),
@@ -136,6 +156,7 @@ class OrionWorker:
                     self.db.add(snapshot)
                     novos_snapshots += 1
 
+            # Comita tudo em uma única transação limpa
             self.db.commit()
             print("\n============================================================")
             print(f"🏆 SUCESSO DE INTELIGÊNCIA:")

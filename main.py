@@ -595,7 +595,8 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
     if not tenant:
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
 
-    username_limpo = tenant.social_handle.replace('@', '')
+    # CORREÇÃO CRÍTICA DO ARROBA
+    username_limpo = tenant.social_handle.replace('https://instagram.com/', '').replace('@', '').replace('/', '').strip().lower()
 
     # ==========================================
     # 1. KPIs E CRESCIMENTO (Proteção contra Zero)
@@ -650,10 +651,13 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
     arsenal_hooks = []
     
     for comp in competitors:
-        comp_hist = db.query(ProfileHistory).filter(ProfileHistory.username == comp.username).order_by(desc(ProfileHistory.date)).first()
-        comp_followers = comp_hist.followers if comp_hist else 0  # <--- O PROBLEMA ESTAVA AQUI
+        # CORREÇÃO DO ARROBA PARA A ARENA
+        comp_username_limpo = comp.username.replace('https://instagram.com/', '').replace('@', '').replace('/', '').strip().lower()
         
-        comp_posts = db.query(Post).filter(Post.username == comp.username).order_by(desc(Post.published_at)).limit(3).all()
+        comp_hist = db.query(ProfileHistory).filter(ProfileHistory.username == comp_username_limpo).order_by(desc(ProfileHistory.date)).first()
+        comp_followers = comp_hist.followers if comp_hist else 0  
+        
+        comp_posts = db.query(Post).filter(Post.username == comp_username_limpo).order_by(desc(Post.published_at)).limit(3).all()
         comp_eng_rate = 0
         
         if comp_posts:
@@ -895,64 +899,17 @@ async def force_scheduler_sync(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    """
-    FORÇA O DISPARO DO MOTOR LÓGICO:
-    Esta rota ignora o cronograma do scheduler e executa o OrionWorker 
-    imediatamente para o cliente selecionado.
-    """
-    # 1. Validação de Segurança Sênior
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado ou acesso negado.")
-
-    # 2. Definição da tarefa pesada (O robô em si)
-    def start_engine():
-        print(f"🚀 [ENGINE] Disparo manual acionado para: {tenant.name}")
-        try:
-            if not APIFY_TOKEN:
-                print("❌ ERRO: APIFY_TOKEN não configurado no servidor.")
-                return
-
-            # Instanciamos o Worker e rodamos a extração completa
-            # Isso vai atualizar TrackedProfiles, Posts e Insights no banco Neon
-            worker = OrionWorker(APIFY_TOKEN)
-            worker.run()
-            
-            print(f"✅ [ENGINE] Sincronização concluída com sucesso para {tenant.name}")
-        except Exception as e:
-            print(f"💥 [ENGINE] Falha crítica na execução manual: {str(e)}")
-
-    # 3. Adiciona à fila de segundo plano do FastAPI
-    # Isso libera o botão no frontend instantaneamente enquanto o Python trabalha atrás
-    background_tasks.add_task(start_engine)
-
-    return {
-        "status": "success", 
-        "message": "Motor Orion acionado. A base de dados será populada em instantes.",
-        "estimated_time": "2-5 minutos"
-    }
-
-# --- ROTA DE DISPARO DO MOTOR (START ENGINE) ---
-@app.post("/api/workers/force-sync/{tenant_id}")
-async def force_scheduler_sync(
-    tenant_id: int, 
-    background_tasks: BackgroundTasks, 
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    """Gatilho manual para o Scheduler Orion."""
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
 
     def run_engine():
-        print(f"🚀 [ENGINE] Iniciando coleta forçada para {tenant.name}")
+        print(f"🚀 [ENGINE] Iniciando coleta EXCLUSIVA para {tenant.name}")
         try:
             worker = OrionWorker(APIFY_TOKEN)
-            worker.run()
-            print(f"✅ [ENGINE] Sincronização manual finalizada.")
+            worker.run(target_tenant_id=tenant.id) # <- CORREÇÃO CRÍTICA AQUI
         except Exception as e:
             print(f"❌ [ENGINE] Falha no motor: {e}")
 
     background_tasks.add_task(run_engine)
-    return {"status": "success", "message": "Motor acionado em background."}
+    return {"status": "success"}
