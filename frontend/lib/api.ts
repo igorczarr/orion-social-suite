@@ -1,12 +1,13 @@
 // frontend/lib/api.ts
 
-// O endereço do nosso Motor Lógico (Python/FastAPI)
-const API_BASE_URL = "http://localhost:8000";
+// O endereço do nosso Motor Lógico (Python/FastAPI) com apontamento Cloud-Native
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
 // Função tática para resgatar o Crachá de Segurança (Token)
 const getAuthToken = () => {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("vrtice_token");
+    // CORREÇÃO: Atualizado para o novo padrão de token da arquitetura Orion
+    return localStorage.getItem("orion_token");
   }
   return null;
 };
@@ -39,7 +40,7 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     // Protocolo de Segurança: Se o token for falso ou expirou (Erro 401)
     if (response.status === 401) {
       if (typeof window !== "undefined") {
-        localStorage.removeItem("vrtice_token"); // Queima o crachá falso
+        localStorage.removeItem("orion_token"); // CORREÇÃO: Limpa o token correto
         window.location.href = "/login"; // Expulsa para o Portão
       }
       throw new Error("Sessão expirada ou acesso negado.");
@@ -80,7 +81,8 @@ export const OrionAPI = {
   getTenants: () => 
     fetchAPI(`/api/tenants`, { method: "GET" }),
   
-  createTenant: (tenantData: { name: string, social_handle: string, niche: string, personas: string, competitors: string }) => 
+  // CORREÇÃO: Adicionado 'keywords' na tipagem, pois o schema TenantCreate no backend o exige.
+  createTenant: (tenantData: { name: string, social_handle: string, niche: string, personas: string, competitors: string, keywords: string }) => 
     fetchAPI(`/api/tenants`, {
       method: "POST",
       body: JSON.stringify(tenantData),
