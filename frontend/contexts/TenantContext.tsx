@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { OrionAPI } from "@/lib/api"; // O nosso cabo de ligação
+import { OrionAPI } from "@/lib/api";
 
 // A Estrutura de dados que vem do Backend (Python)
 export interface TenantData {
@@ -18,7 +18,7 @@ export interface TenantData {
 
 interface TenantContextProps {
   tenants: TenantData[];
-  tenantInfo: TenantData | null; // Mantemos o nome 'tenantInfo' para não quebrar as telas
+  tenantInfo: TenantData | null;
   isLoading: boolean;
   toggleTenant: () => void;
   refreshTenants: () => Promise<void>;
@@ -31,55 +31,64 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const [activeIndex, setActiveIndex] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Função para buscar os dados reais do Python
+  // Função Sênior para buscar os dados reais do Python
   const fetchTenants = async () => {
     try {
+      // Bloqueio de Segurança: Se não tem token (ex: na tela de login), não bate na API.
+      // Injetamos um placeholder para garantir que o React renderize as telas públicas.
+      if (typeof window !== "undefined" && !localStorage.getItem("orion_token")) {
+        setTenants([{ 
+            id: -2, name: "Aguardando Autenticação", social_handle: "login_required", 
+            niche: "Sistema", initials: "🔒", personas: [], competitors: [] 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const data = await OrionAPI.getTenants();
       
       if (data && data.length > 0) {
-        // Formata os dados vindos do backend
+        // SUCESSO ABSOLUTO: O Banco tem clientes reais. Formata e exibe.
         const formattedTenants = data.map((t: any) => ({
           ...t,
-          initials: t.name.substring(0, 2).toUpperCase(),
-          // Se o backend enviar string separada por vírgula, transformamos em array
+          initials: t.name ? t.name.substring(0, 2).toUpperCase() : "CL",
           personas: t.personas ? (typeof t.personas === 'string' ? t.personas.split(',') : t.personas) : ["Público Geral"], 
           competitors: t.competitors ? (typeof t.competitors === 'string' ? t.competitors.split(',') : t.competitors) : ["Concorrente Não Definido"]
         }));
         setTenants(formattedTenants);
+        
+        // Garante que o índice não estoure se um cliente for apagado
+        if (activeIndex >= formattedTenants.length) setActiveIndex(0);
       } else {
-        loadFallbackData();
+        // ESTADO ZERO: A API funcionou, mas o usuário não tem nenhum cliente cadastrado ainda.
+        // Carregamos um "Cliente Fantasma" para o frontend não quebrar com null pointers.
+        setTenants([{ 
+          id: 0, 
+          name: "Nenhum Cliente Cadastrado", 
+          social_handle: "cadastre_agora", 
+          niche: "Aguardando Setup", 
+          initials: "00", 
+          personas: [], 
+          competitors: [] 
+        }]);
+        setActiveIndex(0);
       }
     } catch (error) {
-      console.error("Falha ao carregar Tenants do Backend. Acionando modo Offline (Mock)...", error);
-      loadFallbackData();
+      console.error("[Orion Core] Falha ao sincronizar Tenants.", error);
+      // CAIU A INTERNET OU SERVIDOR: Carrega um aviso claro, não o Mock antigo.
+      setTenants([{ 
+        id: -1, 
+        name: "Erro de Conexão", 
+        social_handle: "offline", 
+        niche: "Servidor Indisponível", 
+        initials: "ER", 
+        personas: [], 
+        competitors: [] 
+      }]);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Plano B: Se o Python estiver desligado, carregamos os dados estáticos antigos
-  const loadFallbackData = () => {
-    setTenants([
-      { 
-        id: 1, 
-        name: "@sofs.valentini", 
-        social_handle: "sofs.valentini", 
-        niche: "Moda & Vestuário", 
-        initials: "SV", 
-        personas: ["Executiva / Alfaiataria (25-35a)", "Transição de Carreira (20-30a)", "Mãe Corporativa (30-45a)"], 
-        competitors: ["@lojasrenner", "@zara_brasil"] 
-      },
-      { 
-        id: 2, 
-        name: "@lojasrenner", 
-        social_handle: "lojasrenner", 
-        niche: "Moda Acessível", 
-        initials: "LR", 
-        personas: ["Jovem Geração Z (18-24a)", "Moda Acessível / Dia a Dia (Todos)", "Básicos de Inverno (25-45a)"], 
-        competitors: ["@cea_brasil", "@riachuelo"] 
-      }
-    ]);
   };
 
   // Roda uma vez quando o sistema abre
@@ -104,14 +113,15 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       toggleTenant,
       refreshTenants: fetchTenants 
     }}>
-      {/* Apenas renderiza o sistema (children) se tivermos carregado o tenantInfo, 
-        evitando erros de "undefined" nas telas 
+      {/* A Renderização Segura: 
+        Só bloqueia a tela se estiver buscando os dados inicialmente. 
+        Uma vez resolvido (mesmo com o Zero-State), a aplicação é liberada.
       */}
-      {tenantInfo ? children : (
-        <div className="w-full h-screen flex items-center justify-center bg-v-black text-v-gold animate-pulse">
-          Iniciando Motor Lógico...
+      {isLoading ? (
+        <div className="w-full h-screen flex items-center justify-center bg-[#050505] text-[#D4AF37] animate-pulse font-montserrat text-xs tracking-[0.2em] uppercase">
+          Sincronizando Motor Lógico...
         </div>
-      )}
+      ) : tenantInfo ? children : null}
     </TenantContext.Provider>
   );
 }
