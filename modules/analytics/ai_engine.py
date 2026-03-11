@@ -182,3 +182,52 @@ if __name__ == "__main__":
         print("\n💡 BRIEFING GERADO (JSON):")
         print(json.dumps(briefing, indent=2, ensure_ascii=False))
         print("-" * 80)
+
+def generate_cmo_dossier(self, data: dict) -> str:
+        """
+        [SÊNIOR] Gera um relatório massivo de 5 capítulos para o Diretor de Marketing.
+        """
+        prompt = f"""
+        Você é o Diretor Estratégico (CMO) da VRTICE. Sua missão é redigir um Dossiê de Inteligência Competitiva 
+        profundo, tático e impecável para o cliente: {data['tenant_name']} (Nicho: {data['niche']}).
+
+        Aqui estão os dados interceptados pelo sistema Orion nas últimas horas:
+        - Nossos Seguidores: {data['followers']} | Crescimento recente: {data['delta_followers']}
+        - Nosso Engajamento Médio: {data['avg_engagement']}%
+        - Nossos Melhores Formatos: {data['top_formats']}
+        - Nossos Concorrentes: {data['competitors_data']}
+        - Radar de Persona (Dores/Medos ouvidos): {data['persona_radar']}
+        - Arsenal da Concorrência (Ganchos ativos): {data['arsenal']}
+        - Pulso Global (Trends atuais): {data['global_trends']}
+
+        REQUISITO DE FORMATAÇÃO: 
+        Este relatório DEVE ser extenso o suficiente para ocupar pelo menos 5 páginas de leitura densa e profissional. 
+        Use tom corporativo, analítico e de alto nível (focado em conversão e dominação de mercado).
+        Utilize formatação Markdown pesada (## Capítulos, ### Subtítulos, **Negritos**, - Listas).
+
+        ESTRUTURA OBRIGATÓRIA DOS 5 CAPÍTULOS:
+        
+        ## CAPÍTULO 1: RADIOGRAFIA DO CENÁRIO ATUAL
+        Analise friamente os nossos números ({data['followers']} seguidores, {data['avg_engagement']}% engajamento). O que isso significa no mercado atual de {data['niche']}? Onde estamos sangrando tráfego?
+        
+        ## CAPÍTULO 2: CARTOGRAFIA DA CONCORRÊNCIA (A ARENA)
+        Disseque os concorrentes informados. Analise os ganchos que eles estão usando ({data['arsenal']}). Por que estão usando isso? Qual é a fraqueza deles que nós vamos explorar?
+        
+        ## CAPÍTULO 3: DIAGNÓSTICO DO RADAR DE PERSONA
+        Com base nas dores extraídas ({data['persona_radar']}), desenhe o perfil psicológico exato de quem está com o cartão de crédito na mão hoje. O que o mercado não está entregando para eles?
+        
+        ## CAPÍTULO 4: ENGENHARIA DE CONTEÚDO E VETORES DE TRAÇÃO
+        Conecte as tendências globais ({data['global_trends']}) com os nossos melhores formatos ({data['top_formats']}). Defina a linha editorial exata para os próximos 30 dias.
+        
+        ## CAPÍTULO 5: PLANO DE INTERVENÇÃO CIRÚRGICA (DIRETRIZES DE AÇÃO)
+        Escreva 5 passos operacionais que a equipe de produção (designers, copywriters, videomakers) deve executar amanhã de manhã. Regras claras, ganchos primários e CTAs de conversão direta.
+
+        Gere o relatório agora, mantendo a excelência VRTICE.
+        """
+        try:
+            # Usamos o modelo Pro aqui caso você tenha acesso, pois ele é melhor para textos muito longos
+            model = genai.GenerativeModel('gemini-2.5-pro') if 'gemini-2.5-pro' in str(self.model) else self.model
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            return f"Erro ao gerar Dossiê CMO: {str(e)}"

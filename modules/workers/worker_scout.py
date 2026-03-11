@@ -19,8 +19,11 @@ class YouTubeScoutRadar:
         self.ai_model = genai.GenerativeModel('gemini-2.5-flash')
         self.db = SessionLocal()
 
-    def get_target_tenants(self):
-        return self.db.query(Tenant).filter(Tenant.keywords != None).all()
+    def get_target_tenants(self, target_tenant_id=None): # <-- Adicionado parâmetro
+        query = self.db.query(Tenant).filter(Tenant.keywords != None)
+        if target_tenant_id:
+            query = query.filter(Tenant.id == target_tenant_id)
+        return query.all()
 
     # NOVO: Conta o volume atual para decidir entre Arrastão (1000) ou Manutenção (100)
     def check_tenant_volume(self, tenant_id: int) -> int:
@@ -104,12 +107,12 @@ class YouTubeScoutRadar:
             print(f"  ⚠️ Falha no Batch da IA: {str(e)[:100]}...")
             return []
 
-    def run_radar_cycle(self):
+    def run_radar_cycle(self, target_tenant_id=None): # <-- Adicionado parâmetro
         print("\n📡 ========================================================")
         print("📡 INICIANDO WORKER SCOUT (Escuta Ativa & Oceano Azul)")
         print("📡 ========================================================")
 
-        tenants = self.get_target_tenants()
+        tenants = self.get_target_tenants(target_tenant_id)
         if not tenants:
             print("⚠️ Nenhum cliente com palavras-chave configuradas.")
             return

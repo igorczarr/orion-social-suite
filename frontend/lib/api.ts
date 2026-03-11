@@ -103,4 +103,8 @@ export const OrionAPI = {
   // 6. GAMIFICAÇÃO
   getGamificationStatus: () => 
     fetchAPI(`/api/gamification/dashboard`, { method: "GET" }),
+
+  // Adicione isso no final do objeto OrionAPI
+  generateDossier: (tenantId: number) => 
+    fetchAPI(`/api/reports/dossier/${tenantId}`, { method: "GET" }),
 };

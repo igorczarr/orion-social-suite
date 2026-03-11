@@ -5,14 +5,19 @@ import {
   TrendingUp, Users, Target, Activity, Zap, Flame, Crosshair, 
   ArrowUpDown, Filter, Search, Eye, Heart, Bookmark, Swords, 
   Trophy, BrainCircuit, Radar, MessageCircle, PenTool, X, Plus, 
-  Settings, Edit3, ShieldAlert, RefreshCw, Terminal, Layout
+  Settings, Edit3, ShieldAlert, RefreshCw, Terminal, Layout, 
+  Download, FileText
 } from "lucide-react";
 import { OrionAPI } from "@/lib/api"; 
 import { useTenant } from "@/contexts/TenantContext";
+import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function DashboardPage() {
   const { tenantInfo, toggleTenant, refreshTenants } = useTenant();
+
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
   
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
@@ -95,11 +100,9 @@ export default function DashboardPage() {
 
     setIsSyncing(true);
     try {
-      // Usando a nova rota forceSync que definimos no api.ts
       await OrionAPI.forceSync(tenantInfo.id);
-      alert("Motor Orion em campo! Os robôs do Apify foram acionados. Os dados serão atualizados em instantes nos logs do servidor.");
+      alert("Motor Orion em campo! A cascata tática foi iniciada. Atualizaremos os dados em 2 minutos.");
       
-      // Auto-refresh após 2 minutos (tempo médio de raspagem)
       setTimeout(() => {
         window.location.reload();
       }, 120000);
@@ -112,8 +115,7 @@ export default function DashboardPage() {
   };
 
   const handleIAAdjustment = () => {
-    alert("Iniciando recalibragem de rota estratégica... O cérebro Gemini aplicará as mudanças no próximo ciclo de geração.");
-    // Aqui no futuro chamaremos a rota POST /api/dashboard/{id}/apply-adjustment
+    alert("Iniciando recalibragem de rota estratégica... O cérebro Gemini aplicará as mudanças no próximo ciclo.");
   };
 
   const filteredAndSortedPosts = useMemo(() => {
@@ -159,6 +161,45 @@ export default function DashboardPage() {
     }
   };
 
+  // --- GERADOR DE DOSSIÊ CMO EM PDF ---
+  const handleGenerateReport = async () => {
+    if (!tenantInfo || tenantInfo.id <= 0) return;
+    setIsGeneratingReport(true);
+    
+    try {
+      console.log("Invocando IA para dossiê estratégico...");
+      const res = await OrionAPI.generateDossier(tenantInfo.id);
+      setReportData(res);
+
+      // Usando import dinâmico para evitar problemas de window is not defined no Next.js
+      const html2pdf = (await import("html2pdf.js")).default;
+      
+      // Delay tático: Dá tempo do React renderizar a div oculta com o Markdown completo antes de fotografar
+      setTimeout(() => {
+        const element = document.getElementById("vrtice-pdf-report");
+        if (element) {
+          const opt = {
+            margin:       15,
+            filename:     `Dossie_Estrategico_${tenantInfo.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#020617' },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+          
+          html2pdf().set(opt).from(element).save().then(() => {
+            setIsGeneratingReport(false);
+            setReportData(null); // Desmonta a div pesada da memória
+          });
+        }
+      }, 1500); 
+      
+    } catch (error) {
+      console.error("Falha ao gerar relatório:", error);
+      alert("Falha ao sintetizar o Dossiê CMO. A IA pode estar sobrecarregada ou a chave é inválida.");
+      setIsGeneratingReport(false);
+    }
+  };
+
   const handleGenerateBriefing = async () => {
     setIsGenerating(true);
     try {
@@ -188,7 +229,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 mb-4">
             <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-red-500 animate-ping' : 'bg-green-500 animate-pulse'} shadow-[0_0_10px_#22c55e]`}></span>
             <span className="font-montserrat text-[0.65rem] text-[#d4af37] uppercase tracking-widest border border-[#d4af37]/30 px-2 py-1 bg-[#d4af37]/10 rounded-md">
-              {isSyncing ? "Motor Lógico em Campo" : "Sistema Operacional Ativo"}
+              {isSyncing ? "Cascata Tática Acionada" : "Sistema Operacional Ativo"}
             </span>
           </div>
           <h1 className="font-abhaya text-4xl md:text-5xl font-bold text-v-white-off tracking-wide">
@@ -443,7 +484,6 @@ export default function DashboardPage() {
 
       {/* === BARRA DE FERRAMENTAS FLUTUANTE (ACTION DOCK) === */}
       <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-v-gold/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]">
-        {/* Ferramenta 1: Start Engine (Sincronização) */}
         <button 
           onClick={handleStartEngine}
           disabled={isSyncing}
@@ -453,7 +493,6 @@ export default function DashboardPage() {
           <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
         </button>
 
-        {/* Ferramenta 2: Terminal de Operações (Mapeamento) */}
         <button 
           onClick={() => alert("Terminal Orion v2.0: Mapeando vetores de crescimento...")}
           className="w-12 h-12 rounded-full bg-v-white-off/5 text-v-white-off hover:bg-v-white-off hover:text-black flex items-center justify-center transition-all"
@@ -462,13 +501,27 @@ export default function DashboardPage() {
           <Terminal size={20} />
         </button>
 
-        {/* Ferramenta 3: Foco de Campanha (Radar) */}
         <button 
           onClick={() => alert("Radar de Campanha Ativado: Priorizando conversão direta.")}
           className="w-12 h-12 rounded-full bg-v-white-off/5 text-v-white-off hover:bg-v-white-off hover:text-black flex items-center justify-center transition-all"
           title="Nova Missão Tática"
         >
           <Layout size={20} />
+        </button>
+
+        {/* FERRAMENTA 4: GERAR DOSSIÊ */}
+        <button 
+          onClick={handleGenerateReport}
+          disabled={isGeneratingReport}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all group relative ${
+            isGeneratingReport ? 'bg-v-gold/50 text-black animate-pulse' : 'bg-[#d4af37] text-black hover:bg-white hover:text-black border border-[#d4af37]'
+          }`}
+          title="Download Dossiê CMO"
+        >
+          {isGeneratingReport ? <RefreshCw size={20} className="animate-spin" /> : <Download size={20} />}
+          <span className="absolute bottom-full right-0 mb-4 px-3 py-1 bg-[#d4af37] text-black text-[0.55rem] font-bold uppercase tracking-widest rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-[0_0_15px_rgba(212,175,55,0.4)] pointer-events-none">
+            Baixar Dossiê Estratégico (PDF)
+          </span>
         </button>
       </div>
 
@@ -585,11 +638,61 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ==========================================
+          O PAPEL TIMBRADO (RENDERIZADO APENAS PARA PDF)
+          Nota Sênior: Deve estar na raiz do componente, NUNCA dentro de uma função menor.
+      ========================================== */}
+      {reportData && (
+        <div className="absolute top-0 left-0 opacity-0 pointer-events-none w-full flex justify-center z-[-9999] overflow-hidden">
+          <div id="vrtice-pdf-report" className="w-[210mm] bg-[#020617] text-v-white-off font-montserrat p-12 box-border relative min-h-[297mm]">
+            
+            {/* Design Timbrado de Fundo */}
+            <div className="absolute top-0 left-0 w-full h-[5px] bg-[#d4af37]"></div>
+            <div className="absolute bottom-0 left-0 w-full h-[5px] bg-[#d4af37]"></div>
+            <div className="absolute top-12 right-12 opacity-5"><Target size={250} className="text-[#d4af37]" /></div>
+            
+            {/* Cabeçalho Oficial */}
+            <div className="border-b border-[#d4af37]/30 pb-6 mb-10 flex justify-between items-end relative z-10">
+              <div>
+                <h1 className="font-abhaya text-4xl text-[#d4af37] tracking-widest uppercase">V R T I C E</h1>
+                <p className="text-[0.6rem] text-gray-500 uppercase tracking-[0.3em] mt-1">Intelligence Division • Orion System</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400 uppercase tracking-widest">Dossiê Estratégico CMO</p>
+                <p className="text-sm text-v-white-off font-bold mt-1 uppercase tracking-wider">{reportData.client_name}</p>
+                <p className="text-[0.6rem] text-[#d4af37] mt-1 tracking-widest">Emitido em: {reportData.date}</p>
+              </div>
+            </div>
+
+            {/* O Texto Dinâmico Gerado pela IA formatado com ReactMarkdown */}
+            <div className="prose prose-invert max-w-none relative z-10
+              prose-headings:font-abhaya prose-headings:text-[#d4af37] prose-headings:tracking-wide
+              prose-h2:text-3xl prose-h2:border-b prose-h2:border-white/10 prose-h2:pb-3 prose-h2:mt-10
+              prose-h3:text-xl prose-h3:text-white prose-h3:mt-6
+              prose-p:text-[0.85rem] prose-p:leading-relaxed prose-p:text-gray-300 prose-p:text-justify
+              prose-li:text-[0.85rem] prose-li:text-gray-300 prose-li:my-1
+              prose-strong:text-white prose-strong:font-bold
+              prose-blockquote:border-l-[#d4af37] prose-blockquote:bg-white/5 prose-blockquote:p-4 prose-blockquote:italic
+            ">
+              <ReactMarkdown>
+                {reportData.content_md}
+              </ReactMarkdown>
+            </div>
+
+            {/* Rodapé */}
+            <div className="mt-16 pt-6 border-t border-white/10 text-center relative z-10">
+               <p className="text-[0.55rem] text-gray-600 uppercase tracking-[0.4em]">Documento Confidencial • Propriedade Intelectual VRTICE Agency</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
 
-// COMPONENTES AUXILIARES PRESERVADOS
+// COMPONENTES AUXILIARES PRESERVADOS E HIGIENIZADOS
 function MetricBox({ title, value, trend, isPositive, icon, isLoading = false }: { title: string, value: string | undefined, trend: string, isPositive: boolean, icon: React.ReactNode, isLoading?: boolean }) {
   return (
     <div className="glass-panel p-5 border border-white/5 rounded-xl flex flex-col justify-between h-32 bg-black/20 hover:border-[#d4af37]/30 transition-colors">

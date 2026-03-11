@@ -76,18 +76,23 @@ class ArenaAnalyzer:
             print(f"   ❌ Erro de IA no post {post.shortcode}: {e}")
             return None
 
-    def run_arena_cycle(self):
+    def run_arena_cycle(self, target_tenant_id=None): # <-- Adicionado parâmetro
         print("\n⚔️ ========================================================")
         print("⚔️ INICIANDO MOTOR ARENA (Estudo Tático de Concorrentes)")
         print("⚔️ ========================================================\n")
         
-        tenants = self.db.query(Tenant).all()
+        # Filtragem Sênior: Foca em um cliente se o botão for clicado, ou em todos se for madrugada
+        query = self.db.query(Tenant)
+        if target_tenant_id:
+            query = query.filter(Tenant.id == target_tenant_id)
+            
+        tenants = query.all()
         
         if not tenants:
-            print("⚠️ Nenhum cliente cadastrado no cofre.")
+            print("⚠️ Nenhum cliente cadastrado/encontrado no cofre.")
             self.db.close()
             return
-
+    
         for tenant in tenants:
             print(f"\n🎯 Preparando Arena para: {tenant.name}")
             
