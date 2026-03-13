@@ -152,7 +152,6 @@ def on_startup():
     print("🛠️ Iniciando rotinas de inicialização do servidor...")
     init_db()
     
-    # 1. Movido o teste de banco de dados para DENTRO do startup seguro
     try:
         print("📡 Tentando apertar a mão do Banco de Dados (Neon)...")
         connection = engine.connect()
@@ -161,18 +160,29 @@ def on_startup():
     except Exception as e:
         print(f"❌ ERRO FATAL: O Backend não consegue falar com o Banco: {e}")
 
-    # 2. Inicialização do Scheduler preservada como você construiu
-    def run_scheduler():
+    # A CURA DO CRASH: Função Sênior de Desacoplamento
+    # Isso impede que o peso do scheduler mate a inicialização da API
+    def run_scheduler_delayed():
         import subprocess
-        # Previne crash se o arquivo scheduler não existir ainda no Render
+        import time
+        
+        # O servidor ganha 30 segundos para dizer "estou vivo" para a nuvem
+        print("⏳ [BOOT] Segurando o disparo do orquestrador por 30s para não sobrecarregar a CPU...")
+        time.sleep(30)
+        
         if os.path.exists("scheduler.py"):
-            subprocess.Popen(["python", "scheduler.py"])
-            print("🚀 Agendador disparado em background.")
+            try:
+                # O creationflags impede que a thread mate a API no Linux
+                subprocess.Popen(["python", "scheduler.py"], close_fds=True)
+                print("🚀 Agendador disparado em background com sucesso.")
+            except Exception as e:
+                print(f"❌ Falha ao disparar o scheduler: {e}")
         else:
             print("⚠️ scheduler.py não encontrado, ignorando execução paralela.")
 
-    threading.Thread(target=run_scheduler, daemon=True).start()
-    print("🚀 API Disparada.")
+    # A Thread principal passa e o delay acontece no fundo
+    threading.Thread(target=run_scheduler_delayed, daemon=True).start()
+    print("🚀 API Disparada e Pronta para Receber Tráfego.")
 
 @app.get("/api/scout/status")
 def system_status():
