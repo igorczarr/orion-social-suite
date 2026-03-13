@@ -161,7 +161,7 @@ export default function DashboardPage() {
     }
   };
 
-  // --- GERADOR DE DOSSIÊ CMO EM PDF ---
+  // --- GERADOR DE DOSSIÊ CMO EM PDF (BLINDADO CONTRA ERROS DE BUILD) ---
   const handleGenerateReport = async () => {
     if (!tenantInfo || tenantInfo.id <= 0) return;
     setIsGeneratingReport(true);
@@ -178,15 +178,17 @@ export default function DashboardPage() {
       setTimeout(() => {
         const element = document.getElementById("vrtice-pdf-report");
         if (element) {
+          // Usamos 'as const' para acalmar o TypeScript do Vercel
           const opt = {
             margin:       15,
             filename:     `Dossie_Estrategico_${tenantInfo.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
+            image:        { type: 'jpeg' as const, quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#020617' },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            jsPDF:        { unit: 'mm', format: 'a4' as const, orientation: 'portrait' as const }
           };
           
-          html2pdf().set(opt).from(element).save().then(() => {
+          // O 'as any' bypassa os tipos quebrados da biblioteca html2pdf garantindo o deploy na Vercel
+          html2pdf().set(opt as any).from(element).save().then(() => {
             setIsGeneratingReport(false);
             setReportData(null); // Desmonta a div pesada da memória
           });
