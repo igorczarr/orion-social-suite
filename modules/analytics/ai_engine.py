@@ -34,6 +34,9 @@ class AIEngine:
         self.client = genai.Client(api_key=api_key)
         self.model_id = 'gemini-2.5-flash' # Excelente escolha de modelo
         
+        # O modelo pro será usado exclusivamente para textos muito densos (Dossiê)
+        self.pro_model_id = 'gemini-2.5-pro'
+        
         # A PONTE PARA OS WORKERS NÃO CRASCHAREM
         self.model = _ModelAdapter(self.client, self.model_id)
 
@@ -165,25 +168,8 @@ class AIEngine:
         except Exception as e:
             return f"❌ Erro crítico no córtex frontal (IA): {e}"
 
-if __name__ == "__main__":
-    # --- ÁREA DE TESTE ISOLADO CORRIGIDA ---
-    TEST_API_KEY = "AIzaSyAmF9NldmAuwsgGzRAW4yWhoeBLqURjTb0" 
-    
-    if not TEST_API_KEY.startswith("AIza"):
-        print("⚠️ Por favor, insira a sua chave API do Gemini no código para testar.")
-    else:
-        ai = AIEngine(TEST_API_KEY)
-        
-        print("\n📊 TESTANDO MÓDULO DE BRIEFING...")
-        print("-" * 80)
-        
-        briefing = ai.generate_briefing("Queda na Taxa Selic", "@primorico")
-        
-        print("\n💡 BRIEFING GERADO (JSON):")
-        print(json.dumps(briefing, indent=2, ensure_ascii=False))
-        print("-" * 80)
-
-def generate_cmo_dossier(self, data: dict) -> str:
+    # O Método Dossiê foi trazido para DENTRO da classe e ajustado para o novo SDK.
+    def generate_cmo_dossier(self, data: dict) -> str:
         """
         [SÊNIOR] Gera um relatório massivo de 5 capítulos para o Diretor de Marketing.
         """
@@ -225,9 +211,36 @@ def generate_cmo_dossier(self, data: dict) -> str:
         Gere o relatório agora, mantendo a excelência VRTICE.
         """
         try:
-            # Usamos o modelo Pro aqui caso você tenha acesso, pois ele é melhor para textos muito longos
-            model = genai.GenerativeModel('gemini-2.5-pro') if 'gemini-2.5-pro' in str(self.model) else self.model
-            response = model.generate_content(prompt)
+            print("📄 [Skill: Dossiê CMO] Sintetizando relatório massivo...")
+            # Usando o novo SDK e o modelo Pro (1.5 ou 2.5) para lidar com a geração longa
+            response = self.client.models.generate_content(
+                model=self.pro_model_id,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._get_cmo_persona({'username': 'VRTICE', 'niche': 'Estratégia Corporativa'}),
+                    temperature=0.8,
+                )
+            )
             return response.text
         except Exception as e:
-            return f"Erro ao gerar Dossiê CMO: {str(e)}"
+            print(f"❌ Erro ao gerar Dossiê CMO: {e}")
+            return f"Erro ao gerar Dossiê CMO. Motivo: {str(e)}"
+
+
+if __name__ == "__main__":
+    # --- ÁREA DE TESTE ISOLADO CORRIGIDA ---
+    TEST_API_KEY = "AIzaSyAmF9NldmAuwsgGzRAW4yWhoeBLqURjTb0" 
+    
+    if not TEST_API_KEY.startswith("AIza"):
+        print("⚠️ Por favor, insira a sua chave API do Gemini no código para testar.")
+    else:
+        ai = AIEngine(TEST_API_KEY)
+        
+        print("\n📊 TESTANDO MÓDULO DE BRIEFING...")
+        print("-" * 80)
+        
+        briefing = ai.generate_briefing("Queda na Taxa Selic", "@primorico")
+        
+        print("\n💡 BRIEFING GERADO (JSON):")
+        print(json.dumps(briefing, indent=2, ensure_ascii=False))
+        print("-" * 80)
