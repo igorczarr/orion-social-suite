@@ -203,3 +203,34 @@ class VortexTarget(Base):
     
     # Relação com o Tenant (Cliente)
     tenant = relationship("Tenant", backref="vortex_targets")
+
+class TrendInsight(Base):
+    """
+    Tabela 1 do Radar Tríplice: As tendências efêmeras (Notícias Quentes e Entretenimento BR)
+    """
+    __tablename__ = "trend_insights"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    topic = Column(String)
+    category = Column(String) # Ex: "Notícia Quente", "Entretenimento BR", "Tech"
+    heat = Column(String)     # Ex: "Extremo", "Alto"
+    source_url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant")
+
+class AuthorityProof(Base):
+    """
+    Tabela 2 do Radar Tríplice: O Acervo de Autoridade (Notícias do nicho, estudos, entrevistas)
+    """
+    __tablename__ = "authority_proofs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"))
+    title = Column(String)
+    source_url = Column(String)
+    source_name = Column(String) # Ex: "G1", "Forbes", "Exame"
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant")

@@ -60,26 +60,6 @@ def clean_db_username(name: str) -> str:
     cleaned = name.replace('https://www.instagram.com/', '').replace('https://instagram.com/', '').replace('@', '').replace('/', '').strip().lower()
     return re.sub(r'[^a-zA-Z0-9_.-]', '', cleaned)
 
-def get_real_time_trends():
-    """Busca as tendências reais do Google Trends Brasil em menos de 1 segundo."""
-    try:
-        url = "https://trends.google.com/trends/trendingsearches/daily/rss?geo=BR"
-        feed = feedparser.parse(url)
-        trends = []
-        for i, entry in enumerate(feed.entries[:5]):
-            # Limpa o tráfego estimado (ex: "100K+ searches")
-            heat = entry.get('ht_approx_traffic', 'Alto').replace('+', '').replace('searches', '').strip()
-            trends.append({
-                "rank": i + 1,
-                "topic": entry.title,
-                "category": "Viral Global",
-                "heat": heat
-            })
-        return trends
-    except Exception as e:
-        print(f"Erro no Radar Global: {e}")
-        return [{"rank": 1, "topic": "Falha no Radar", "category": "Erro", "heat": "Baixo"}]
-
 def get_db():
     db = SessionLocal()
     try:
@@ -726,47 +706,42 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
         arsenal_hooks.append({"hook": f"Pare de cometer este erro no seu negócio de {tenant.niche}.", "source": "Orion Inteligência"})
         arsenal_hooks.append({"hook": f"O método infalível para escalar no mercado de {tenant.niche} hoje.", "source": "Orion Inteligência"})
 
-    # ==========================================
-    # 4. RADAR DE PERSONA E TENDÊNCIAS REAIS
+   # ==========================================
+    # 4. RADAR DE PERSONA (Dores e Objeções)
     # ==========================================
     insights = db.query(SocialInsight).filter(SocialInsight.tenant_id == tenant.id).order_by(desc(SocialInsight.created_at)).limit(5).all()
     radar_data = [{"quote": ins.quote, "category": ins.category, "platform": ins.platform} for ins in insights]
-
-    # MOCK INTELIGENTE: Se a escuta estiver vazia, cria insights com base nas personas
+    
     if not radar_data:
-        if tenant.personas:
-            personas_list = tenant.personas.split(",")
-            for i, persona in enumerate(personas_list[:3]):
-                radar_data.append({
-                    "quote": f"Meu maior problema sendo {persona.strip()} é encontrar serviços confiáveis.", 
-                    "category": "Fricção de Mercado", 
-                    "platform": "Orion Synth"
-                })
-        else:
-             radar_data.append({"quote": "Aguardando configuração de personas no painel do cliente.", "category": "Sistema", "platform": "Aguardando"})
-
-
-    # Substituímos o mock pelas tendências reais da internet:
-    global_trends = get_real_time_trends()
+        personas_list = tenant.personas.split(",") if tenant.personas else ["seu público"]
+        radar_data = [
+            {"quote": f"A principal dificuldade do {personas_list[0].strip()} é confiar em novas promessas.", "category": "Objeção", "platform": "Orion Synth"},
+            {"quote": "O suporte dos grandes players é terrível.", "category": "Fricção", "platform": "Orion Synth"}
+        ]
 
     # ==========================================
-    # 5. INTELIGÊNCIA SINTÉTICA (O Cérebro)
+    # 5. RADAR TRÍPLICE (A Lista Larga Bruta)
     # ==========================================
-    intervencao = "Volume de dados insuficiente. Mantenha a consistência."
+    # Puxa as tendências efêmeras (Google + X)
+    trends_db = db.query(TrendInsight).filter(TrendInsight.tenant_id == tenant.id).order_by(desc(TrendInsight.created_at)).limit(15).all()
+    global_trends = [{"topic": t.topic, "category": t.category, "heat": t.heat, "url": t.source_url} for t in trends_db]
+
+    # Puxa as provas de autoridade empíricas
+    proofs_db = db.query(AuthorityProof).filter(AuthorityProof.tenant_id == tenant.id).order_by(desc(AuthorityProof.created_at)).limit(15).all()
+    authority_proofs = [{"title": p.title, "source": p.source_name, "url": p.source_url} for p in proofs_db]
+
+    # ==========================================
+    # 6. INTERVENÇÃO IA E GAMIFICAÇÃO
+    # ==========================================
+    intervencao = "Dados estabilizados. Mantenha a cadência de publicações."
     if posts_data:
         melhor_post = max(posts_data, key=lambda x: x['engagement'])
-        intervencao = f"Foco Imediato: O seu formato {melhor_post['type']} gerou {melhor_post['engagement']}% de engajamento recentemente. Aloque 80% do esforço produtivo nisso."
+        if melhor_post['engagement'] > 0:
+            intervencao = f"Cálculo Tático: O formato '{melhor_post['type']}' gerou {melhor_post['engagement']}% de engajamento recentemente. Aloque recursos na replicação deste gancho visual."
 
-    cmo_strategy = "Aguardando escuta ativa e mapeamento da concorrência."
-    if radar_data and arsenal_hooks:
-        cmo_strategy = f"Cruzei a dor '{radar_data[0]['category']}' com a tática da concorrência. Sugiro refutar o hook usando a nossa autoridade."
+    cmo_strategy = "Aguardando curadoria humana. Escolha um tópico no Radar Tríplice para gerar a estratégia."
 
-    # ==========================================
-    # GAMIFICAÇÃO (Matemática segura)
-    # ==========================================
     meta = (followers // 10000 + 1) * 10000 if followers > 0 else 10000
-    faltam = meta - followers
-    percent = round((followers / meta) * 100, 1) if meta > 0 else 0
 
     return {
         "kpis": {
@@ -779,16 +754,17 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
         "gamification": {
             "current": followers,
             "target": meta,
-            "remaining": faltam,
-            "percent": percent
+            "remaining": meta - followers,
+            "percent": round((followers / meta) * 100, 1) if meta > 0 else 0
         },
         "radar": radar_data,
         "posts": posts_data,
         "arena": arena_data,
         "intervencao": intervencao,
-        "global_trends": global_trends,
+        "global_trends": global_trends,        # <-- A lista larga de Trends
+        "authority_proofs": authority_proofs,  # <-- A lista larga de Autoridade
         "cmo_strategy": cmo_strategy,
-        "arsenal": arsenal_hooks[:6]
+        "arsenal": arsenal_hooks[:5]
     }
 
 @app.get("/api/oracle/{tenant_id}")
@@ -1057,3 +1033,52 @@ def generate_full_report(tenant_id: int, db: Session = Depends(get_db), current_
         "date": datetime.now().strftime("%d/%m/%Y"),
         "content_md": dossier_markdown
     }
+
+# Schema para a nova rota
+class TacticalGenerateRequest(BaseModel):
+    source_type: str # 'trend' ou 'proof'
+    content: str     # O título da notícia ou o assunto do X
+
+@app.post("/api/ai/generate-tactical-copy/{tenant_id}")
+async def generate_tactical_copy(
+    tenant_id: int, 
+    req: TacticalGenerateRequest, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    O gatilho manual. Pega um fato bruto escolhido pelo usuário e transforma em ouro.
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    prompt = ""
+    if req.source_type == "proof":
+        prompt = f"""
+        Como Estrategista Sênior, analise esta prova de autoridade (Notícia/Estudo) do nicho de {tenant.niche}:
+        "{req.content}"
+        
+        Sua missão: Transforme isso em um Roteiro de Vídeo (Reels/TikTok) de 30 segundos.
+        Estrutura OBRIGATÓRIA da resposta:
+        1. HOOK VISUAL (Os 3 primeiros segundos para prender a atenção).
+        2. A AUTORIDADE (Como citar essa notícia de forma impactante).
+        3. A DOR (Conectar a notícia com a dor da persona: {tenant.personas}).
+        4. O CTA (Chamada para ação agressiva).
+        """
+    else:
+        prompt = f"""
+        Como Estrategista Sênior, analise este Tópico Viral do momento:
+        "{req.content}"
+        
+        Sua missão: Faça um "Trend Hijacking". Como podemos surfar nesse assunto e conectar com o nicho de {tenant.niche} de forma genial e não forçada?
+        Entregue a estratégia completa em um parágrafo e, em seguida, a Legenda Pronta para o post.
+        """
+
+    try:
+        print(f"⚡ [IA] Processando item sob demanda: {req.content[:30]}...")
+        # Passa pelo motor central (usando o Flash por ser ágil para a UI)
+        resposta_ia = ai_service._call_ai(prompt, {"username": tenant.name, "niche": tenant.niche}, "Geração Tática On-Demand")
+        return {"status": "success", "data": resposta_ia}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

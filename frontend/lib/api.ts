@@ -104,7 +104,17 @@ export const OrionAPI = {
   getGamificationStatus: () => 
     fetchAPI(`/api/gamification/dashboard`, { method: "GET" }),
 
-  // Adicione isso no final do objeto OrionAPI
+  // 7. GERAÇÃO DE DOSSIÊ COMPLETO
   generateDossier: (tenantId: number) => 
     fetchAPI(`/api/reports/dossier/${tenantId}`, { method: "GET" }),
+
+  // 8. GERAÇÃO TÁTICA SOB DEMANDA (NOVA ARMA: RADAR TRÍPLICE)
+  generateTacticalCopy: (tenantId: number, sourceType: 'trend' | 'proof', content: string) =>
+    fetchAPI(`/api/ai/generate-tactical-copy/${tenantId}`, {
+      method: "POST",
+      body: JSON.stringify({ 
+        source_type: sourceType, 
+        content: content 
+      }),
+    }),
 };

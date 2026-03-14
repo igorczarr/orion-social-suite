@@ -30,6 +30,11 @@ export default function DashboardPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiBriefing, setAiBriefing] = useState<any>(null);
   
+  // === NOVOS ESTADOS: GERAÇÃO TÁTICA SOB DEMANDA ===
+  const [isGeneratingTactics, setIsGeneratingTactics] = useState(false);
+  const [tacticalResult, setTacticalResult] = useState<string | null>(null);
+  const [tacticalSource, setTacticalSource] = useState<string | null>(null);
+
   // Estados de Sincronização e Ferramentas
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTheme, setActiveTheme] = useState("navy");
@@ -161,7 +166,7 @@ export default function DashboardPage() {
     }
   };
 
-  // --- GERADOR DE DOSSIÊ CMO EM PDF (BLINDADO CONTRA ERROS DE BUILD) ---
+  // --- GERADOR DE DOSSIÊ CMO EM PDF ---
   const handleGenerateReport = async () => {
     if (!tenantInfo || tenantInfo.id <= 0) return;
     setIsGeneratingReport(true);
@@ -171,14 +176,11 @@ export default function DashboardPage() {
       const res = await OrionAPI.generateDossier(tenantInfo.id);
       setReportData(res);
 
-      // Usando import dinâmico para evitar problemas de window is not defined no Next.js
       const html2pdf = (await import("html2pdf.js")).default;
       
-      // Delay tático: Dá tempo do React renderizar a div oculta com o Markdown completo antes de fotografar
       setTimeout(() => {
         const element = document.getElementById("vrtice-pdf-report");
         if (element) {
-          // Usamos 'as const' para acalmar o TypeScript do Vercel
           const opt = {
             margin:       15,
             filename:     `Dossie_Estrategico_${tenantInfo.name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
@@ -187,10 +189,9 @@ export default function DashboardPage() {
             jsPDF:        { unit: 'mm', format: 'a4' as const, orientation: 'portrait' as const }
           };
           
-          // O 'as any' bypassa os tipos quebrados da biblioteca html2pdf garantindo o deploy na Vercel
           html2pdf().set(opt as any).from(element).save().then(() => {
             setIsGeneratingReport(false);
-            setReportData(null); // Desmonta a div pesada da memória
+            setReportData(null); 
           });
         }
       }, 1500); 
@@ -208,7 +209,7 @@ export default function DashboardPage() {
       const comp = dashboardData?.arena?.[selectedCompetitorIdx]?.username || "@concorrente";
       const realPainPoint = dashboardData?.radar?.[0]?.quote 
         ? `A dor profunda da audiência é: "${dashboardData.radar[0].quote}"`
-        : dashboardData?.global_trends?.[0]?.topic || "Dificuldade na atração de clientes";
+        : "Dificuldade na atração de clientes";
         
       const response = await OrionAPI.generateBriefing(realPainPoint, comp);
       setAiBriefing(response.data); 
@@ -217,6 +218,23 @@ export default function DashboardPage() {
       alert("Falha ao gerar briefing. Verifique a conexão.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // === NOVO: FUNÇÃO DE GERAÇÃO TÁTICA SOB DEMANDA (RADAR TRÍPLICE) ===
+  const handleGenerateTacticalCopy = async (sourceType: 'trend' | 'proof', content: string) => {
+    if (!tenantInfo || tenantInfo.id <= 0) return;
+    setIsGeneratingTactics(true);
+    setTacticalSource(content); 
+    
+    try {
+      const response = await OrionAPI.generateTacticalCopy(tenantInfo.id, sourceType, content);
+      setTacticalResult(response.data);
+    } catch (error) {
+      console.error("Falha ao acionar IA Tática:", error);
+      alert("Falha na geração tática. Verifique os logs do sistema.");
+    } finally {
+      setIsGeneratingTactics(false);
     }
   };
 
@@ -323,16 +341,16 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 4. MOTOR DE GUERRA */}
+      {/* 4. MOTOR DE GUERRA (A Arena e Dores) */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="glass-panel border border-white/10 rounded-xl flex flex-col h-full min-h-[350px] bg-black/20">
           <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/40">
-            <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-[#d4af37] flex items-center gap-2"><Radar size={14} /> Radar Global</h3>
+            <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-[#d4af37] flex items-center gap-2"><Radar size={14} /> Status Global (Preview)</h3>
           </div>
           <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-[#d4af37]/20">
             {isLoadingDashboard ? <p className="text-xs text-gray-500 text-center mt-8 animate-pulse">Buscando tendências reais...</p> : 
-             dashboardData?.global_trends?.length > 0 ? dashboardData.global_trends.map((t: any, i: number) => <TrendItem key={i} rank={t.rank} topic={t.topic} category={t.category} heat={t.heat} />) : 
-             <p className="text-xs text-gray-500 text-center mt-8">Nenhuma tendência mapeada.</p>}
+             dashboardData?.global_trends?.length > 0 ? dashboardData.global_trends.slice(0,5).map((t: any, i: number) => <TrendItem key={i} rank={i + 1} topic={t.topic} category={t.category} heat={t.heat} />) : 
+             <p className="text-xs text-gray-500 text-center mt-8">Nenhuma tendência mapeada. Use a curadoria abaixo.</p>}
           </div>
         </div>
 
@@ -431,6 +449,84 @@ export default function DashboardPage() {
         </div>
       </section>
 
+      {/* 4.5 RADAR TRÍPLICE (Data Lake Bruto & Curadoria Sênior) */}
+      <section className="glass-panel border border-white/10 rounded-xl overflow-hidden bg-black/20">
+        <div className="p-6 border-b border-white/10 bg-black/40">
+          <h3 className="font-montserrat text-xs font-bold uppercase tracking-widest text-v-white-off flex items-center gap-2">
+            <Flame size={14} className="text-[#d4af37]" /> Curadoria Tática (Data Lake)
+          </h3>
+          <p className="text-[0.6rem] text-gray-500 uppercase tracking-widest mt-1">
+            Escolha uma tendência global ou uma prova de autoridade no nicho e deixe o CMO construir o gancho letal.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/10">
+          
+          {/* COLUNA 1: TRENDS GLOBAIS */}
+          <div className="p-4 flex flex-col h-[400px]">
+            <h4 className="font-montserrat text-[0.65rem] font-bold text-[#d4af37] uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Activity size={12} /> Viral Global & Entretenimento
+            </h4>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+              {isLoadingDashboard ? (
+                <p className="text-xs text-gray-500 animate-pulse">Sincronizando feed global...</p>
+              ) : dashboardData?.global_trends?.length > 0 ? (
+                dashboardData.global_trends.map((trend: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-black/40 rounded-lg border border-white/5 hover:border-[#d4af37]/30 transition-all group">
+                    <div className="flex-1 pr-4">
+                      <p className="font-montserrat text-xs font-bold text-gray-300 group-hover:text-v-white-off truncate" title={trend.topic}>{trend.topic}</p>
+                      <span className="text-[0.55rem] text-gray-500 uppercase tracking-wider">{trend.category}</span>
+                    </div>
+                    <button 
+                      onClick={() => handleGenerateTacticalCopy('trend', trend.topic)}
+                      className="p-2 bg-[#d4af37]/10 text-[#d4af37] rounded-md hover:bg-[#d4af37] hover:text-black transition-all shadow-[0_0_10px_rgba(212,175,55,0)] hover:shadow-[0_0_10px_rgba(212,175,55,0.4)]"
+                      title="Gerar Estratégia de Hijacking"
+                    >
+                      <Zap size={14} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-500">Nenhuma trend recente. Aguarde o ciclo do motor.</p>
+              )}
+            </div>
+          </div>
+
+          {/* COLUNA 2: PROVAS DE AUTORIDADE */}
+          <div className="p-4 flex flex-col h-[400px] bg-white/[0.02]">
+            <h4 className="font-montserrat text-[0.65rem] font-bold text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Crosshair size={12} /> Provas Empíricas (Nicho)
+            </h4>
+            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+              {isLoadingDashboard ? (
+                <p className="text-xs text-gray-500 animate-pulse">Garimpando estudos e notícias...</p>
+              ) : dashboardData?.authority_proofs?.length > 0 ? (
+                dashboardData.authority_proofs.map((proof: any, idx: number) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-black/60 rounded-lg border border-blue-500/10 hover:border-blue-500/30 transition-all group">
+                    <div className="flex-1 pr-4">
+                      <p className="font-montserrat text-xs font-bold text-gray-300 group-hover:text-v-white-off line-clamp-2" title={proof.title}>{proof.title}</p>
+                      <a href={proof.url} target="_blank" rel="noopener noreferrer" className="text-[0.55rem] text-blue-400/70 hover:text-blue-400 uppercase tracking-wider block mt-1 truncate">
+                        🔗 Fonte: {proof.source}
+                      </a>
+                    </div>
+                    <button 
+                      onClick={() => handleGenerateTacticalCopy('proof', proof.title)}
+                      className="p-2 bg-blue-500/10 text-blue-400 rounded-md hover:bg-blue-500 hover:text-black transition-all shadow-[0_0_10px_rgba(59,130,246,0)] hover:shadow-[0_0_10px_rgba(59,130,246,0.4)] ml-2"
+                      title="Gerar Roteiro de Autoridade"
+                    >
+                      <Zap size={14} />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-gray-500">Nenhuma prova mapeada. Execute o Motor de Radar.</p>
+              )}
+            </div>
+          </div>
+          
+        </div>
+      </section>
+
       {/* 5. MATRIZ DE CONTEÚDO */}
       <section className="glass-panel border border-white/10 rounded-xl overflow-hidden bg-black/20">
         <div className="p-6 border-b border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 bg-black/40">
@@ -485,7 +581,7 @@ export default function DashboardPage() {
       </section>
 
       {/* === BARRA DE FERRAMENTAS FLUTUANTE (ACTION DOCK) === */}
-      <div className="fixed bottom-6 right-6 z-[200] flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-v-gold/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+      <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-v-gold/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]">
         <button 
           onClick={handleStartEngine}
           disabled={isSyncing}
@@ -511,7 +607,6 @@ export default function DashboardPage() {
           <Layout size={20} />
         </button>
 
-        {/* FERRAMENTA 4: GERAR DOSSIÊ */}
         <button 
           onClick={handleGenerateReport}
           disabled={isGeneratingReport}
@@ -527,7 +622,54 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* === MODAL DE IA (CMO) === */}
+      {/* === MODAL DE RESPOSTA DA IA (TÁTICA SOB DEMANDA) === */}
+      {(tacticalResult || isGeneratingTactics) && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in-up">
+          <div className="glass-panel max-w-2xl w-full p-8 border border-[#d4af37]/40 rounded-xl relative shadow-[0_0_80px_rgba(212,175,55,0.15)] bg-black/95 max-h-[85vh] flex flex-col">
+            {!isGeneratingTactics && (
+              <button onClick={() => {setTacticalResult(null); setTacticalSource(null);}} className="absolute top-6 right-6 text-gray-400 hover:text-v-white-off transition-all"><X size={24} /></button>
+            )}
+            
+            <div className="border-b border-white/10 pb-4 mb-6 shrink-0">
+              <h2 className="font-abhaya text-3xl text-v-white-off flex items-center gap-3">
+                <BrainCircuit className="text-[#d4af37]" /> Engenharia de Copy
+              </h2>
+              <p className="font-montserrat text-[0.65rem] text-gray-500 uppercase tracking-widest mt-2 truncate">
+                Fonte base: {tacticalSource || "Analisando dados..."}
+              </p>
+            </div>
+
+            <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
+              {isGeneratingTactics ? (
+                <div className="flex flex-col items-center justify-center py-20 opacity-70">
+                  <Activity size={40} className="text-[#d4af37] animate-spin mb-4" />
+                  <p className="font-montserrat text-sm text-[#d4af37] tracking-[0.2em] uppercase animate-pulse">Sintetizando Roteiro Letal...</p>
+                </div>
+              ) : (
+                <div className="prose prose-invert max-w-none font-montserrat text-sm text-gray-300 leading-relaxed
+                  prose-headings:font-abhaya prose-headings:text-[#d4af37] prose-headings:tracking-wide
+                  prose-strong:text-white prose-p:mb-4 prose-li:mb-1
+                ">
+                  <ReactMarkdown>
+                    {tacticalResult || ""}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            {!isGeneratingTactics && (
+              <div className="pt-6 border-t border-white/10 mt-4 shrink-0 flex justify-end gap-3">
+                 <button onClick={() => {setTacticalResult(null); setTacticalSource(null);}} className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold uppercase tracking-widest transition-colors rounded-lg">Descartar</button>
+                 <button onClick={() => {alert("Copiado para a prancheta!"); navigator.clipboard.writeText(tacticalResult || "");}} className="px-6 py-3 bg-[#d4af37] text-black text-xs font-bold uppercase tracking-widest hover:bg-[#b5952f] transition-colors rounded-lg shadow-[0_0_15px_rgba(212,175,55,0.3)] flex items-center gap-2">
+                   Copiar Roteiro
+                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* === MODAL DE IA ANTIGO (CMO BRIEFING) === */}
       {aiBriefing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in-up">
           <div className="glass-panel max-w-3xl w-full p-8 md:p-10 border border-[#d4af37]/40 rounded-xl relative shadow-[0_0_80px_rgba(212,175,55,0.15)] bg-black/90">
@@ -643,7 +785,6 @@ export default function DashboardPage() {
 
       {/* ==========================================
           O PAPEL TIMBRADO (RENDERIZADO APENAS PARA PDF)
-          Nota Sênior: Deve estar na raiz do componente, NUNCA dentro de uma função menor.
       ========================================== */}
       {reportData && (
         <div className="absolute top-0 left-0 opacity-0 pointer-events-none w-full flex justify-center z-[-9999] overflow-hidden">
@@ -694,7 +835,7 @@ export default function DashboardPage() {
   );
 }
 
-// COMPONENTES AUXILIARES PRESERVADOS E HIGIENIZADOS
+// COMPONENTES AUXILIARES PRESERVADOS
 function MetricBox({ title, value, trend, isPositive, icon, isLoading = false }: { title: string, value: string | undefined, trend: string, isPositive: boolean, icon: React.ReactNode, isLoading?: boolean }) {
   return (
     <div className="glass-panel p-5 border border-white/5 rounded-xl flex flex-col justify-between h-32 bg-black/20 hover:border-[#d4af37]/30 transition-colors">
@@ -717,7 +858,7 @@ function TrendItem({ rank, topic, category, heat }: { rank: number, topic: strin
     <div className="flex items-center gap-4 p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group rounded-md">
       <div className="w-6 h-6 flex items-center justify-center font-abhaya text-lg font-bold text-gray-500 group-hover:text-[#d4af37]">{rank}</div>
       <div className="flex-1">
-        <p className="font-montserrat text-xs font-bold text-v-white-off group-hover:text-[#d4af37] transition-colors">{topic}</p>
+        <p className="font-montserrat text-xs font-bold text-v-white-off group-hover:text-[#d4af37] transition-colors truncate">{topic}</p>
         <p className="font-montserrat text-[0.6rem] text-gray-500 uppercase tracking-widest mt-1">{category}</p>
       </div>
       <div className={`text-[0.6rem] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${heat === 'Extremo' ? 'bg-red-500/10 text-red-400 border-red-500/30' : heat === 'Alto' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}>{heat}</div>
