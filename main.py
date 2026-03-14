@@ -635,8 +635,13 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
     # ==========================================
     # 2. POSTS E MÉTRICAS
     # ==========================================
-    posts_db = db.query(Post).filter(Post.username == username_limpo).order_by(desc(Post.published_at)).limit(20).all()
-    
+# 2. POSTS E MÉTRICAS (BLINDADO)
+    # Busca apenas os posts que realmente pertencem a este Tenant (Evita cruzamento de dados)
+    tracked_profile = db.query(TrackedProfile).filter(TrackedProfile.tenant_id == tenant.id, TrackedProfile.is_client_account == True).first()
+    if tracked_profile:
+        username_limpo = clean_db_username(tracked_profile.username)
+        
+    posts_db = db.query(Post).filter(Post.username == username_limpo).order_by(desc(Post.published_at)).limit(20).all()    
     posts_data = []
     total_eng_rate = 0
     total_reach = 0
@@ -958,44 +963,42 @@ async def force_scheduler_sync(
         print(f"\n🚀 [CASCATA] Iniciando atualização COMPLETA para o cliente: {tenant.name}")
         
         try:
-            # 1. ORGÂNICO (Posts, Seguidores, Engajamento)
+            # 1. ORGÂNICO (Apify - Posts, Seguidores)
             print("⏳ [CASCATA 1/3] Iniciando Rastreador Orgânico...")
-            # Importamos dinamicamente para garantir que pega o arquivo correto (verifique se você usa organic_scraper ou apify_worker)
-            try:
-                from modules.workers.organic_scraper import OrganicScraper as Scraper
-            except ImportError:
-                from modules.workers.apify_worker import OrionWorker as Scraper
-                
-            w1 = Scraper(APIFY_TOKEN)
+            from modules.workers.apify_worker import OrionWorker
+            w1 = OrionWorker(APIFY_TOKEN)
             w1.run(target_tenant_id=tenant.id)
             
-            # Dá tempo para o banco Neon registrar os posts
+            # Pausa de segurança para o Banco de Dados salvar as transações
             import time
-            time.sleep(3)
+            time.sleep(5)
 
-            # 2. ARENA (Ganchos e Ads dos Concorrentes)
+            # 2. ARENA (Gera os ganchos da concorrência)
             print("⏳ [CASCATA 2/3] Iniciando Analisador de Arena...")
-            from modules.workers.worker_ads import ArenaAnalyzer
-            w2 = ArenaAnalyzer(GEMINI_API_KEY)
-            w2.run_arena_cycle(target_tenant_id=tenant.id)
+            try:
+                from modules.workers.worker_ads import ArenaAnalyzer
+                w2 = ArenaAnalyzer(GEMINI_API_KEY)
+                w2.run_arena_cycle(target_tenant_id=tenant.id)
+            except Exception as e2:
+                print(f"⚠️ Erro ao rodar a Arena: {e2}")
 
             # 3. SCOUT (Escuta Ativa no YouTube)
             print("⏳ [CASCATA 3/3] Iniciando Radar Scout...")
-            from modules.workers.worker_scout import YouTubeScoutRadar
-            w3 = YouTubeScoutRadar(YOUTUBE_API_KEY, GEMINI_API_KEY)
-            w3.run_radar_cycle(target_tenant_id=tenant.id)
+            try:
+                from modules.workers.worker_scout import YouTubeScoutRadar
+                w3 = YouTubeScoutRadar(YOUTUBE_API_KEY, GEMINI_API_KEY)
+                w3.run_radar_cycle(target_tenant_id=tenant.id)
+            except Exception as e3:
+                print(f"⚠️ Erro ao rodar o Scout: {e3}")
 
-            print(f"✅ [CASCATA] Atualização completa 100% finalizada para {tenant.name}!")
+            print(f"✅ [CASCATA] Atualização 100% finalizada para {tenant.name}!")
         except Exception as e:
             print(f"❌ [CASCATA] Falha fatal durante a cadeia de operações: {e}")
 
-    # Joga a cascata inteira para segundo plano para liberar o Frontend
+    # Aciona a cascata em segundo plano
     background_tasks.add_task(run_full_cascade)
     
-    return {
-        "status": "success", 
-        "message": "Cascata de Inteligência acionada com sucesso. Os dados chegarão em etapas nos próximos minutos."
-    }
+    return {"status": "success", "message": "Motor acionado."}
 
 # --- ROTA DE GERAÇÃO DO DOSSIÊ (PDF DATA) ---
 @app.get("/api/reports/dossier/{tenant_id}")
