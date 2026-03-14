@@ -1,29 +1,21 @@
 # modules/analytics/ai_engine.py
-from google import genai
-from google.genai import types
 import os
 import json
+import google.generativeai as genai
 
 class _ModelAdapter:
     """
     Adapter Pattern: Mantém a compatibilidade com os Workers antigos (Scout, Vórtex, Arena)
     que ainda chamam `self.ai.model.generate_content(prompt).text` sem precisarmos de reescrevê-os.
     """
-    def __init__(self, client, model_id):
-        self.client = client
-        self.model_id = model_id
+    def __init__(self, client_placeholder, model_id):
+        # O client_placeholder é mantido para não quebrar a assinatura original da sua classe
+        self.model = genai.GenerativeModel(model_id)
 
     def generate_content(self, prompt: str):
-        # O novo SDK não retorna um objeto com ".text" direto, precisamos de encapsular a resposta
-        response = self.client.models.generate_content(
-            model=self.model_id,
-            contents=prompt
-        )
-        # Retorna um objeto "dummy" que tem a propriedade .text para não quebrar os workers
-        class DummyResponse:
-            def __init__(self, text):
-                self.text = text
-        return DummyResponse(response.text)
+        # No SDK estável, o modelo já devolve um objeto com a propriedade .text, 
+        # garantindo compatibilidade imediata com os workers.
+        return self.model.generate_content(prompt)
 
 
 class AIEngine:
@@ -31,14 +23,16 @@ class AIEngine:
         if not api_key or not api_key.startswith("AIza"):
             print("⚠️ Aviso: Chave do Gemini inválida ou não configurada.")
             
-        self.client = genai.Client(api_key=api_key)
+        # Inicialização Sênior: Usando o configure padrão do SDK estável
+        genai.configure(api_key=api_key)
+        
         self.model_id = 'gemini-2.5-flash' # Excelente escolha de modelo
         
         # O modelo pro será usado exclusivamente para textos muito densos (Dossiê)
         self.pro_model_id = 'gemini-2.5-pro'
         
-        # A PONTE PARA OS WORKERS NÃO CRASCHAREM
-        self.model = _ModelAdapter(self.client, self.model_id)
+        # A PONTE PARA OS WORKERS NÃO CRASCHAREM (Preservando sua arquitetura)
+        self.model = _ModelAdapter(None, self.model_id)
 
     def _get_cmo_persona(self, profile_context: dict) -> str:
         """A 'Alma' do Agente: Define o comportamento letal e sênior do Diretor de Marketing."""
@@ -133,14 +127,18 @@ class AIEngine:
         """
         try:
             print("🧠 [Skill: Síntese de Briefing] CMO gerando tática...")
-            response = self.client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=self._get_cmo_persona({'username': 'VRTICE', 'niche': 'Estratégia Global'}),
-                    temperature=0.7,
-                )
+            
+            # Instancia o modelo aplicando a Persona Sênior
+            tactical_model = genai.GenerativeModel(
+                model_name=self.model_id,
+                system_instruction=self._get_cmo_persona({'username': 'VRTICE', 'niche': 'Estratégia Global'})
             )
+            
+            response = tactical_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.7)
+            )
+            
             clean_response = response.text.replace('```json', '').replace('```', '').strip()
             return json.loads(clean_response)
         except Exception as e:
@@ -156,19 +154,21 @@ class AIEngine:
         """Método privado para centralizar a chamada avançada à API do Gemini."""
         try:
             print(f"🧠 [Skill: {skill}] CMO processando dados...")
-            response = self.client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=self._get_cmo_persona(profile_context),
-                    temperature=0.6, # Equilíbrio entre lógica matemática e criatividade
-                )
+            
+            # Cria a instância do modelo injetando a system_instruction dinamicamente
+            configured_model = genai.GenerativeModel(
+                model_name=self.model_id,
+                system_instruction=self._get_cmo_persona(profile_context)
+            )
+            
+            response = configured_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.6)
             )
             return response.text
         except Exception as e:
             return f"❌ Erro crítico no córtex frontal (IA): {e}"
 
-    # O Método Dossiê foi trazido para DENTRO da classe e ajustado para o novo SDK.
     def generate_cmo_dossier(self, data: dict) -> str:
         """
         [SÊNIOR] Gera um relatório massivo de 5 capítulos para o Diretor de Marketing.
@@ -212,14 +212,16 @@ class AIEngine:
         """
         try:
             print("📄 [Skill: Dossiê CMO] Sintetizando relatório massivo...")
-            # Usando o novo SDK e o modelo Pro (1.5 ou 2.5) para lidar com a geração longa
-            response = self.client.models.generate_content(
-                model=self.pro_model_id,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=self._get_cmo_persona({'username': 'VRTICE', 'niche': 'Estratégia Corporativa'}),
-                    temperature=0.8,
-                )
+            
+            # Usando o modelo PRO para lidar perfeitamente com 5 páginas de texto denso
+            pro_model = genai.GenerativeModel(
+                model_name=self.pro_model_id,
+                system_instruction=self._get_cmo_persona({'username': 'VRTICE', 'niche': 'Estratégia Corporativa'})
+            )
+            
+            response = pro_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.8)
             )
             return response.text
         except Exception as e:
