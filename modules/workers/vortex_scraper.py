@@ -1,76 +1,97 @@
 # modules/workers/vortex_scraper.py
 import sys
 import os
-import time
-from datetime import datetime
+import unicodedata
+from datetime import datetime, timezone
 from apify_client import ApifyClient
-from dotenv import load_dotenv # Adicionado para carregar .env
+from dotenv import load_dotenv
 
 # Ajuste de PATH para garantir importações corretas
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from database.connection import SessionLocal
+from database.connection import SessionLocal, init_db
 from database.models import Tenant, TrackedProfile, VortexTarget
-from modules.analytics.ai_engine import AIEngine
 
 class VortexInfiltrator:
-    def __init__(self, apify_token: str, gemini_api_key: str):
+    def __init__(self, apify_token: str):
+        if not apify_token: raise ValueError("APIFY_TOKEN ausente.")
         self.apify_client = ApifyClient(apify_token)
         self.db = SessionLocal()
-        self.ai = AIEngine(gemini_api_key)
-        # O mesmo actor confiável que usamos no Worker 1
+        # O mesmo actor confiável
         self.apify_actor_id = "shu8hvrXbJbY3Eb9W"
 
-    def get_competitors_latest_engagers(self, competitor_username: str, limit=5):
+    def _normalize_text(self, text: str) -> str:
+        """Limpa acentos e maiúsculas para o motor de busca não falhar."""
+        if not text: return ""
+        text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+        return text.lower()
+
+    def get_competitors_latest_engagers(self, competitor_username: str, limit=40):
         """
-        FASE 1: Vai ao perfil do concorrente, pega o último post e extrai quem comentou.
+        FASE 1: Extrai quem COMENTOU (Via Expressa) e quem CURTIU (Via Filtrada).
+        Lê os últimos 3 posts para garantir volume.
         """
-        print(f"🕵️‍♂️ [Fase 1] Infiltrando último post de @{competitor_username}...")
+        print(f"  🕵️‍♂️ [Fase 1] Infiltrando os últimos 3 posts de @{competitor_username}...")
         
         run_input = {
             "directUrls": [f"https://www.instagram.com/{competitor_username.replace('@', '')}/"],
             "resultsType": "posts",
-            "resultsLimit": 1, # Só precisamos do post mais recente e bombado
+            "resultsLimit": 3, # AUMENTADO: Pega os 3 últimos posts para ter volume real
             "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]}
         }
+
+        engagers_map = {}
 
         try:
             run = self.apify_client.actor(self.apify_actor_id).call(run_input=run_input)
             items = self.apify_client.dataset(run["defaultDatasetId"]).list_items().items
             
             if not items:
-                print(f"⚠️ Nenhum post encontrado para @{competitor_username}.")
-                return []
+                print(f"   ⚠️ Nenhum post encontrado para @{competitor_username}.")
+                return {}
 
-            post = items[0]
-            comments = post.get('latestComments', [])
+            for post in items:
+                # 1. Pega os Comentaristas (VIA EXPRESSA)
+                comments = post.get('latestComments', [])
+                for c in comments:
+                    username = c.get('ownerUsername')
+                    if username:
+                        engagers_map[username] = 'commenter'
+
+                # 2. Pega os Curtidores (VIA FILTRADA)
+                likers_brutos = post.get('latestLikes', []) or post.get('topLikers', [])
+                
+                for liker in likers_brutos:
+                    username = liker if isinstance(liker, str) else liker.get('ownerUsername')
+                    
+                    if username:
+                        # Se ele já comentou, mantém o status superior (commenter)
+                        if username not in engagers_map:
+                            engagers_map[username] = 'liker'
+
+            # Limita a lista de extração deste concorrente específico
+            selecionados = dict(list(engagers_map.items())[:limit])
             
-            # Extrai apenas os usernames únicos de quem comentou
-            engagers = list(set([c.get('ownerUsername') for c in comments if c.get('ownerUsername')]))
+            total_comentaristas = sum(1 for v in selecionados.values() if v == 'commenter')
+            total_curtidores = sum(1 for v in selecionados.values() if v == 'liker')
             
-            # Limita a extração para não queimar todos os créditos da Apify num só ciclo
-            selecionados = engagers[:limit]
-            print(f"✅ Encontrados {len(comments)} comentários. Separando {len(selecionados)} alvos para Raio-X.")
+            print(f"   ✅ Separados {len(selecionados)} alvos de @{competitor_username} ({total_comentaristas} comentários, {total_curtidores} curtidas).")
             return selecionados
 
         except Exception as e:
-            print(f"❌ Erro na Fase 1 (Apify): {e}")
-            return []
+            print(f"   ❌ Erro na Fase 1 (Apify): {e}")
+            return {}
 
     def get_profiles_dossier(self, usernames: list):
-        """
-        FASE 2: Faz um Raio-X profundo nos alvos extraídos para pegar a Biografia e Nome Real.
-        """
-        if not usernames:
-            return []
+        """FASE 2: Pega a Biografia e Nome Real dos alvos extraídos em lote."""
+        if not usernames: return []
             
-        print(f"🔍 [Fase 2] Executando Raio-X em {len(usernames)} alvos...")
-        
+        print(f"  🔍 [Fase 2] Executando Raio-X em massa de {len(usernames)} perfis...")
         direct_urls = [f"https://www.instagram.com/{u}/" for u in usernames]
         
         run_input = {
             "directUrls": direct_urls,
-            "resultsType": "details", # MUDANÇA CRUCIAL: Pede os detalhes do perfil, não os posts
+            "resultsType": "details",
             "proxy": {"useApifyProxy": True, "apifyProxyGroups": ["RESIDENTIAL"]}
         }
 
@@ -87,107 +108,106 @@ class VortexInfiltrator:
                     "followers": p.get("followersCount", 0)
                 })
             
-            print(f"✅ Raio-X concluído. {len(dossier)} biografias extraídas.")
+            print(f"   ✅ Raio-X concluído. {len(dossier)} biografias extraídas com sucesso.")
             return dossier
 
         except Exception as e:
-            print(f"❌ Erro na Fase 2 (Apify): {e}")
+            print(f"   ❌ Erro na Fase 2: {e}")
             return []
 
-    def process_and_save_target(self, target_data: dict, tenant: Tenant, competitor_username: str):
+    def process_and_save_target(self, target_data: dict, tenant: Tenant, competitor_username: str, engagement_type: str):
         """
-        FASE 3 & 4: IA analisa o perfil e salva no PostgreSQL se for qualificado.
+        FASE 3 & 4: Motor de Roteamento (Bypass vs Heurística).
+        Retorna "SAVED" se salvou no banco, ou "SKIPPED" se descartou/já existia.
         """
-        # Proteção contra duplicatas
         existente = self.db.query(VortexTarget).filter(
             VortexTarget.tenant_id == tenant.id,
             VortexTarget.username == target_data['username']
         ).first()
         
         if existente:
-            print(f"   ⏭️ @{target_data['username']} já está na nossa base. Pulando.")
-            return
-
-        personas = [p.name for p in tenant.personas]
-        personas_str = ", ".join(personas) if personas else "Público Geral"
-
-        prompt = f"""
-        Você é um estrategista de aquisição orgânica para a marca '{tenant.name}' (Nicho: {tenant.niche}).
-        Nossas personas alvo são: {personas_str}.
-        
-        Avalie este usuário que acabou de interagir com nosso concorrente (@{competitor_username}):
-        - Nome: {target_data['name']}
-        - Username: @{target_data['username']}
-        - Bio: {target_data['bio']}
-        
-        TAREFAS EXATAS:
-        1. SCORE: Dê uma nota de 0 a 100 baseada no quanto a Bio bate com nossas personas.
-        2. ANALISE: Uma frase justificando a nota.
-        3. HOOK: Se a nota for >= 70, escreva um comentário de 1 frase focado. Se não, 'N/A'.
-        
-        Responda ESTRITAMENTE neste formato:
-        SCORE: [numero]
-        ANALISE: [texto]
-        HOOK: [texto]
-        """
-
-        try:
-            response = self.ai.model.generate_content(prompt).text
+            return "SKIPPED"
             
-            # Parse seguro da resposta da IA
-            score = 0
-            analise = "Análise indisponível."
-            hook = "N/A"
-            
-            for linha in response.split('\n'):
-                linha = linha.strip()
-                if linha.startswith("SCORE:"):
-                    try: score = int(linha.replace("SCORE:", "").strip())
-                    except: score = 0
-                elif linha.startswith("ANALISE:"):
-                    analise = linha.replace("ANALISE:", "").strip()
-                elif linha.startswith("HOOK:"):
-                    hook = linha.replace("HOOK:", "").strip()
+        if not target_data.get('bio') and not target_data.get('name'):
+            return "SKIPPED"
 
-            print(f"   🧠 @{target_data['username']} | Score IA: {score}")
+        primeiro_nome = target_data['name'].split(' ')[0].capitalize() if target_data.get('name') else "tudo bem"
+        
+        # ROTA 1: COMENTARISTAS (VIA EXPRESSA - SEM FILTRO)
+        if engagement_type == 'commenter':
+            score = 99
+            analise = f"Lead Premium (Bypass). Alto nível de intenção demonstrado ao comentar em @{competitor_username}."
+            hook = f"Fala {primeiro_nome}! Tudo certo? Vi seu comentário bem interessante lá na @{competitor_username} e decidi dar um alô. Se curtir {tenant.niche}, dá uma olhada no nosso perfil depois!"
+            origin = f"Comentou em @{competitor_username}"
+
+        # ROTA 2: CURTIDORES (VIA HEURÍSTICA - PASSA PELO FILTRO)
+        else:
+            bio_norm = self._normalize_text(target_data.get('bio', ''))
+            tenant_keywords = [self._normalize_text(k.strip()) for k in (tenant.keywords or "").split(',') if k.strip()]
+            tenant_personas = [self._normalize_text(p.name) for p in tenant.personas] if hasattr(tenant, 'personas') else []
+            arsenal_termos = tenant_keywords + tenant_personas
+
+            score = 45 # Nota base (curtida)
+            termos_encontrados = []
+
+            for termo in arsenal_termos:
+                if termo and termo in bio_norm:
+                    score += 20 # 1 termo = 65 pontos (Aprovado)
+                    termos_encontrados.append(termo)
+
+            if score > 99: score = 99
 
             if score >= 60:
-                novo_alvo = VortexTarget(
-                    tenant_id=tenant.id,
-                    username=target_data['username'],
-                    name=target_data['name'],
-                    bio=target_data['bio'],
-                    origin=f"Comentou em @{competitor_username}",
-                    match_score=score,
-                    ai_analysis=analise[:500],
-                    suggested_hook=hook[:500],
-                    status="pending",
-                    created_at=datetime.utcnow()
-                )
-                self.db.add(novo_alvo)
-                self.db.commit()
-                print(f"     💾 Alvo salvo com sucesso na fila do Terminal Sniper!")
+                analise = f"Lead Qualificado por Heurística. Curtiu o concorrente e possui os termos '{', '.join(termos_encontrados)}' na bio."
+                hook = f"Oi {primeiro_nome}! Vi que você acompanha a @{competitor_username}. Como notei que sua bio tem a ver com {tenant.niche}, acho que vai adorar nosso conteúdo!"
             else:
-                print(f"     🗑️ Descartado (Score baixo).")
+                return "SKIPPED" # Aborta o salvamento
+                
+            origin = f"Curtiu @{competitor_username}"
 
+        # SALVAMENTO NO BANCO
+        try:
+            novo_alvo = VortexTarget(
+                tenant_id=tenant.id,
+                username=target_data['username'],
+                name=target_data['name'][:100] if target_data['name'] else "Usuário",
+                bio=target_data['bio'][:500] if target_data['bio'] else "",
+                origin=origin,
+                match_score=score,
+                ai_analysis=analise[:500], 
+                suggested_hook=hook[:500],
+                status="pending",
+                created_at=datetime.now(timezone.utc)
+            )
+            self.db.add(novo_alvo)
+            self.db.commit()
+            print(f"      💾 @{target_data['username']} engatilhado! (Score: {score})")
+            return "SAVED"
         except Exception as e:
-            print(f"   ❌ Erro na Análise de IA para @{target_data['username']}: {e}")
             self.db.rollback()
+            return "SKIPPED"
 
-    def run_infiltration_cycle(self):
+    def run_infiltration_cycle(self, target_tenant_id=None):
         print("\n🌀 ========================================================")
-        print("🌀 INICIANDO MOTOR VÓRTEX (Lookalike & Infiltração Real)")
+        print("🌀 INICIANDO MOTOR VÓRTEX DE ESCALA (Varredura em Grade)")
         print("🌀 ========================================================\n")
         
-        tenants = self.db.query(Tenant).all()
+        query = self.db.query(Tenant)
+        if target_tenant_id:
+            query = query.filter(Tenant.id == target_tenant_id)
+            
+        tenants = query.all()
         
         if not tenants:
-            print("⚠️ Nenhum cliente (Tenant) configurado.")
+            print("⚠️ Nenhum cliente configurado.")
             self.db.close()
             return
 
+        # META DIÁRIA: 50 Leads Mínimos por Cliente
+        META_DIARIA = 50
+
         for tenant in tenants:
-            print(f"\n🎯 Operação Iniciada para Cliente: {tenant.name}")
+            print(f"\n🎯 Infiltração em Massa Iniciada para Cliente: {tenant.name}")
             
             competitors = self.db.query(TrackedProfile).filter(
                 TrackedProfile.tenant_id == tenant.id, 
@@ -195,30 +215,48 @@ class VortexInfiltrator:
             ).all()
             
             if not competitors:
-                 continue
+                print("  ⚠️ Cliente não possui concorrentes mapeados.")
+                continue
                  
-            alvo_concorrente = competitors[0].username 
-            engagers_usernames = self.get_competitors_latest_engagers(alvo_concorrente, limit=5)
-            
-            if engagers_usernames:
-                dossiers = self.get_profiles_dossier(engagers_usernames)
-                for target_data in dossiers:
-                    self.process_and_save_target(target_data, tenant, alvo_concorrente)
-                    time.sleep(1) 
+            alvos_salvos_neste_ciclo = 0
+
+            # O Loop da Varredura: Passa por TODOS os concorrentes até bater a meta
+            for comp in competitors:
+                if alvos_salvos_neste_ciclo >= META_DIARIA:
+                    print(f"  🏁 META ATINGIDA: {META_DIARIA} leads extraídos para {tenant.name}.")
+                    break
+
+                # Ampliamos para 40 potenciais por concorrente
+                engagers_map = self.get_competitors_latest_engagers(comp.username, limit=40) 
+                
+                if engagers_map:
+                    usernames = list(engagers_map.keys())
+                    dossiers = self.get_profiles_dossier(usernames)
                     
-        print("\n🔒 Operação Vórtex Finalizada.")
+                    for target_data in dossiers:
+                        engagement_type = engagers_map.get(target_data['username'], 'liker')
+                        status = self.process_and_save_target(target_data, tenant, comp.username, engagement_type)
+                        
+                        if status == "SAVED":
+                            alvos_salvos_neste_ciclo += 1
+                
+                print(f"  📊 Placar Atual para {tenant.name}: {alvos_salvos_neste_ciclo}/{META_DIARIA} leads garantidos.")
+                    
+        print("\n🔒 Operação Vórtex em Massa Finalizada com sucesso.")
         self.db.close()
 
 if __name__ == "__main__":
-    # PADRONIZAÇÃO SÊNIOR: Carrega variáveis do ambiente
     load_dotenv()
     
-    # Nomes idênticos ao .env e main.py
+    try:
+        init_db()
+    except Exception as e:
+        pass
+
     APIFY_TOKEN = os.getenv("APIFY_TOKEN")
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     
-    if not APIFY_TOKEN or not GEMINI_API_KEY:
-        print("❌ Erro: APIFY_TOKEN ou GEMINI_API_KEY não configurados no .env")
+    if not APIFY_TOKEN:
+        print("❌ Erro: APIFY_TOKEN não configurado no .env")
     else:
-        worker = VortexInfiltrator(APIFY_TOKEN, GEMINI_API_KEY)
+        worker = VortexInfiltrator(APIFY_TOKEN)
         worker.run_infiltration_cycle()

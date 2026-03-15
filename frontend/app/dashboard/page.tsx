@@ -27,10 +27,13 @@ export default function DashboardPage() {
   const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'ytd'>('30d');
   const [selectedCompetitorIdx, setSelectedCompetitorIdx] = useState<number>(0);
 
+  // Filtro inteligente para o novo Radar Unificado
+  const [radarFilter, setRadarFilter] = useState<'Todos' | 'Global/Brasil' | 'Trending Topics' | 'Authority Proof'>('Todos');
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiBriefing, setAiBriefing] = useState<any>(null);
   
-  // === NOVOS ESTADOS: GERAÇÃO TÁTICA SOB DEMANDA ===
+  // === ESTADOS: GERAÇÃO TÁTICA SOB DEMANDA ===
   const [isGeneratingTactics, setIsGeneratingTactics] = useState(false);
   const [tacticalResult, setTacticalResult] = useState<string | null>(null);
   const [tacticalSource, setTacticalSource] = useState<string | null>(null);
@@ -123,6 +126,7 @@ export default function DashboardPage() {
     alert("Iniciando recalibragem de rota estratégica... O cérebro Gemini aplicará as mudanças no próximo ciclo.");
   };
 
+  // --- MOTOR DE FILTRAGEM DE POSTS ---
   const filteredAndSortedPosts = useMemo(() => {
     let filtered = [...posts];
     const now = new Date();
@@ -148,6 +152,46 @@ export default function DashboardPage() {
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'desc') direction = 'asc';
     setSortConfig({ key, direction });
   };
+
+  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) ---
+  const unifiedRadarData = useMemo(() => {
+    if (!dashboardData) return [];
+    let combined: any[] = [];
+
+    // Junta as tendências do mundo e do Twitter
+    if (dashboardData.global_trends) {
+      dashboardData.global_trends.forEach((t: any) => {
+        combined.push({
+          topic: t.topic,
+          category: t.category,
+          heat: t.heat || 'Alto',
+          source_type: 'trend',
+          // Mapeia para a tab correta baseado no nome da categoria gerado pelo backend
+          filterGroup: t.category.toLowerCase().includes('entretenimento') ? 'Trending Topics' : 'Global/Brasil'
+        });
+      });
+    }
+
+    // Junta as provas empíricas / estudos
+    if (dashboardData.authority_proofs) {
+      dashboardData.authority_proofs.forEach((p: any) => {
+        combined.push({
+          topic: p.title,
+          category: `Autoridade (${p.source})`,
+          heat: 'Estudo',
+          source_type: 'proof',
+          filterGroup: 'Authority Proof'
+        });
+      });
+    }
+
+    // Aplica o filtro selecionado pelo usuário na aba
+    if (radarFilter !== 'Todos') {
+      combined = combined.filter(item => item.filterGroup === radarFilter);
+    }
+
+    return combined;
+  }, [dashboardData, radarFilter]);
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,7 +265,7 @@ export default function DashboardPage() {
     }
   };
 
-  // === NOVO: FUNÇÃO DE GERAÇÃO TÁTICA SOB DEMANDA (RADAR TRÍPLICE) ===
+  // === FUNÇÃO DE GERAÇÃO TÁTICA SOB DEMANDA ===
   const handleGenerateTacticalCopy = async (sourceType: 'trend' | 'proof', content: string) => {
     if (!tenantInfo || tenantInfo.id <= 0) return;
     setIsGeneratingTactics(true);
@@ -341,19 +385,53 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* 4. MOTOR DE GUERRA (A Arena e Dores) */}
+      {/* 4. MOTOR DE GUERRA (Data Lake, Arena e Dores) */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        
+        {/* === NOVO RADAR UNIFICADO (COM FILTROS/ABAS) === */}
         <div className="glass-panel border border-white/10 rounded-xl flex flex-col h-full min-h-[350px] bg-black/20">
-          <div className="p-5 border-b border-white/10 flex justify-between items-center bg-black/40">
-            <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-[#d4af37] flex items-center gap-2"><Radar size={14} /> Status Global (Preview)</h3>
+          <div className="p-4 border-b border-white/10 flex flex-col gap-3 bg-black/40 shrink-0">
+            <div className="flex justify-between items-center">
+              <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-[#d4af37] flex items-center gap-2">
+                <Radar size={14} /> Radar Tríplice (Data Lake)
+              </h3>
+            </div>
+            
+            {/* Abas de Filtragem Compactas */}
+            <div className="flex flex-wrap gap-2">
+              {['Todos', 'Global/Brasil', 'Trending Topics', 'Authority Proof'].map(f => (
+                <button 
+                  key={f} 
+                  onClick={() => setRadarFilter(f as any)} 
+                  className={`px-2 py-1 text-[0.55rem] font-montserrat font-bold uppercase tracking-widest rounded-md transition-colors border ${radarFilter === f ? 'bg-[#d4af37] text-black border-[#d4af37]' : 'bg-black/50 text-gray-400 border-white/10 hover:border-[#d4af37]/50'}`}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-[#d4af37]/20">
-            {isLoadingDashboard ? <p className="text-xs text-gray-500 text-center mt-8 animate-pulse">Buscando tendências reais...</p> : 
-             dashboardData?.global_trends?.length > 0 ? dashboardData.global_trends.slice(0,5).map((t: any, i: number) => <TrendItem key={i} rank={i + 1} topic={t.topic} category={t.category} heat={t.heat} />) : 
-             <p className="text-xs text-gray-500 text-center mt-8">Nenhuma tendência mapeada. Use a curadoria abaixo.</p>}
+
+          <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
+            {isLoadingDashboard ? (
+              <p className="text-xs text-gray-500 text-center mt-8 animate-pulse">Garimpando o Data Lake...</p>
+            ) : unifiedRadarData.length > 0 ? (
+              unifiedRadarData.map((item: any, i: number) => (
+                <TrendItem 
+                  key={i} 
+                  rank={i + 1} 
+                  topic={item.topic} 
+                  category={item.category} 
+                  heat={item.heat} 
+                  onZap={() => handleGenerateTacticalCopy(item.source_type, item.topic)}
+                />
+              ))
+            ) : (
+              <p className="text-xs text-gray-500 text-center mt-8">Nenhum dado encontrado para este filtro.</p>
+            )}
           </div>
         </div>
 
+        {/* === ARENA & RADAR DE PERSONA (Inalterados) === */}
         <div className="flex flex-col gap-6 h-full min-h-[350px]">
           <div className="grid grid-cols-2 gap-4 shrink-0">
             <div className="glass-panel border border-white/10 rounded-xl flex flex-col justify-center p-4 bg-black/40">
@@ -410,6 +488,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* === ESTRATÉGIA CMO & ARSENAL === */}
         <div className="flex flex-col gap-6 h-full min-h-[350px]">
           <div className="glass-panel border border-[#d4af37]/30 rounded-xl flex flex-col bg-[#d4af37]/5 relative overflow-hidden shrink-0">
             <div className="absolute -right-5 -top-5 opacity-10 text-[#d4af37]"><BrainCircuit size={100} /></div>
@@ -446,84 +525,6 @@ export default function DashboardPage() {
               )}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* 4.5 RADAR TRÍPLICE (Data Lake Bruto & Curadoria Sênior) */}
-      <section className="glass-panel border border-white/10 rounded-xl overflow-hidden bg-black/20">
-        <div className="p-6 border-b border-white/10 bg-black/40">
-          <h3 className="font-montserrat text-xs font-bold uppercase tracking-widest text-v-white-off flex items-center gap-2">
-            <Flame size={14} className="text-[#d4af37]" /> Curadoria Tática (Data Lake)
-          </h3>
-          <p className="text-[0.6rem] text-gray-500 uppercase tracking-widest mt-1">
-            Escolha uma tendência global ou uma prova de autoridade no nicho e deixe o CMO construir o gancho letal.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/10">
-          
-          {/* COLUNA 1: TRENDS GLOBAIS */}
-          <div className="p-4 flex flex-col h-[400px]">
-            <h4 className="font-montserrat text-[0.65rem] font-bold text-[#d4af37] uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Activity size={12} /> Viral Global & Entretenimento
-            </h4>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              {isLoadingDashboard ? (
-                <p className="text-xs text-gray-500 animate-pulse">Sincronizando feed global...</p>
-              ) : dashboardData?.global_trends?.length > 0 ? (
-                dashboardData.global_trends.map((trend: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-black/40 rounded-lg border border-white/5 hover:border-[#d4af37]/30 transition-all group">
-                    <div className="flex-1 pr-4">
-                      <p className="font-montserrat text-xs font-bold text-gray-300 group-hover:text-v-white-off truncate" title={trend.topic}>{trend.topic}</p>
-                      <span className="text-[0.55rem] text-gray-500 uppercase tracking-wider">{trend.category}</span>
-                    </div>
-                    <button 
-                      onClick={() => handleGenerateTacticalCopy('trend', trend.topic)}
-                      className="p-2 bg-[#d4af37]/10 text-[#d4af37] rounded-md hover:bg-[#d4af37] hover:text-black transition-all shadow-[0_0_10px_rgba(212,175,55,0)] hover:shadow-[0_0_10px_rgba(212,175,55,0.4)]"
-                      title="Gerar Estratégia de Hijacking"
-                    >
-                      <Zap size={14} />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-gray-500">Nenhuma trend recente. Aguarde o ciclo do motor.</p>
-              )}
-            </div>
-          </div>
-
-          {/* COLUNA 2: PROVAS DE AUTORIDADE */}
-          <div className="p-4 flex flex-col h-[400px] bg-white/[0.02]">
-            <h4 className="font-montserrat text-[0.65rem] font-bold text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Crosshair size={12} /> Provas Empíricas (Nicho)
-            </h4>
-            <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-              {isLoadingDashboard ? (
-                <p className="text-xs text-gray-500 animate-pulse">Garimpando estudos e notícias...</p>
-              ) : dashboardData?.authority_proofs?.length > 0 ? (
-                dashboardData.authority_proofs.map((proof: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-black/60 rounded-lg border border-blue-500/10 hover:border-blue-500/30 transition-all group">
-                    <div className="flex-1 pr-4">
-                      <p className="font-montserrat text-xs font-bold text-gray-300 group-hover:text-v-white-off line-clamp-2" title={proof.title}>{proof.title}</p>
-                      <a href={proof.url} target="_blank" rel="noopener noreferrer" className="text-[0.55rem] text-blue-400/70 hover:text-blue-400 uppercase tracking-wider block mt-1 truncate">
-                        🔗 Fonte: {proof.source}
-                      </a>
-                    </div>
-                    <button 
-                      onClick={() => handleGenerateTacticalCopy('proof', proof.title)}
-                      className="p-2 bg-blue-500/10 text-blue-400 rounded-md hover:bg-blue-500 hover:text-black transition-all shadow-[0_0_10px_rgba(59,130,246,0)] hover:shadow-[0_0_10px_rgba(59,130,246,0.4)] ml-2"
-                      title="Gerar Roteiro de Autoridade"
-                    >
-                      <Zap size={14} />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-gray-500">Nenhuma prova mapeada. Execute o Motor de Radar.</p>
-              )}
-            </div>
-          </div>
-          
         </div>
       </section>
 
@@ -835,7 +836,7 @@ export default function DashboardPage() {
   );
 }
 
-// COMPONENTES AUXILIARES PRESERVADOS
+// COMPONENTES AUXILIARES PRESERVADOS E APRIMORADOS
 function MetricBox({ title, value, trend, isPositive, icon, isLoading = false }: { title: string, value: string | undefined, trend: string, isPositive: boolean, icon: React.ReactNode, isLoading?: boolean }) {
   return (
     <div className="glass-panel p-5 border border-white/5 rounded-xl flex flex-col justify-between h-32 bg-black/20 hover:border-[#d4af37]/30 transition-colors">
@@ -853,15 +854,29 @@ function MetricBox({ title, value, trend, isPositive, icon, isLoading = false }:
   );
 }
 
-function TrendItem({ rank, topic, category, heat }: { rank: number, topic: string, category: string, heat: string }) {
+// ATUALIZADO: Agora o TrendItem tem o botão ZAP embutido nele para acionar o Modal Sênior
+function TrendItem({ rank, topic, category, heat, onZap }: { rank: number, topic: string, category: string, heat: string, onZap: () => void }) {
   return (
-    <div className="flex items-center gap-4 p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors group rounded-md">
-      <div className="w-6 h-6 flex items-center justify-center font-abhaya text-lg font-bold text-gray-500 group-hover:text-[#d4af37]">{rank}</div>
-      <div className="flex-1">
-        <p className="font-montserrat text-xs font-bold text-v-white-off group-hover:text-[#d4af37] transition-colors truncate">{topic}</p>
-        <p className="font-montserrat text-[0.6rem] text-gray-500 uppercase tracking-widest mt-1">{category}</p>
+    <div className="flex items-center gap-3 p-3 bg-black/40 border-b border-white/5 hover:border-[#d4af37]/30 hover:bg-white/5 transition-all group rounded-lg mb-2">
+      <div className="w-5 h-5 flex shrink-0 items-center justify-center font-abhaya text-base font-bold text-gray-500 group-hover:text-[#d4af37]">{rank}</div>
+      
+      <div className="flex-1 min-w-0 pr-2">
+        <p className="font-montserrat text-xs font-bold text-gray-300 group-hover:text-v-white-off transition-colors truncate" title={topic}>{topic}</p>
+        <p className="font-montserrat text-[0.55rem] text-gray-500 uppercase tracking-widest mt-1 truncate">{category}</p>
       </div>
-      <div className={`text-[0.6rem] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${heat === 'Extremo' ? 'bg-red-500/10 text-red-400 border-red-500/30' : heat === 'Alto' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'}`}>{heat}</div>
+      
+      <div className={`shrink-0 text-[0.55rem] font-bold uppercase tracking-widest px-2 py-1 rounded-md border ${heat === 'Extremo' ? 'bg-red-500/10 text-red-400 border-red-500/30' : heat === 'Estudo' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : heat === 'Alto' ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-green-500/10 text-green-400 border-green-500/30'}`}>
+        {heat}
+      </div>
+
+      {/* Botão Gatilho de IA On-Demand */}
+      <button 
+        onClick={onZap}
+        className="shrink-0 p-2 bg-[#d4af37]/10 text-[#d4af37] rounded-md hover:bg-[#d4af37] hover:text-black transition-all shadow-[0_0_10px_rgba(212,175,55,0)] hover:shadow-[0_0_10px_rgba(212,175,55,0.4)] ml-1"
+        title="Acionar Engenharia de Copy para este tópico"
+      >
+        <Zap size={14} />
+      </button>
     </div>
   );
 }
