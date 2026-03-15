@@ -153,31 +153,36 @@ export default function DashboardPage() {
     setSortConfig({ key, direction });
   };
 
-  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) ---
+  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) [BLINDADO / DEFENSIVO] ---
   const unifiedRadarData = useMemo(() => {
     if (!dashboardData) return [];
     let combined: any[] = [];
 
-    // Junta as tendências do mundo e do Twitter
-    if (dashboardData.global_trends) {
+    // Proteção Sênior: Verifica se o array existe e é iterável antes do forEach
+    if (dashboardData.global_trends && Array.isArray(dashboardData.global_trends)) {
       dashboardData.global_trends.forEach((t: any) => {
+        const cat = t.category || "";
+        const catLower = cat.toLowerCase();
+        
         combined.push({
-          topic: t.topic,
-          category: t.category,
+          topic: t.topic || "Tópico sem título",
+          category: cat,
           heat: t.heat || 'Alto',
           source_type: 'trend',
-          // Mapeia para a tab correta baseado no nome da categoria gerado pelo backend
-          filterGroup: t.category.toLowerCase().includes('entretenimento') ? 'Trending Topics' : 'Global/Brasil'
+          // Otimização de filtro: se tiver "x" ou "entretenimento", joga para os trending topics
+          filterGroup: (catLower.includes('entretenimento') || catLower.includes('x ') || catLower.includes('(x)')) 
+            ? 'Trending Topics' 
+            : 'Global/Brasil'
         });
       });
     }
 
-    // Junta as provas empíricas / estudos
-    if (dashboardData.authority_proofs) {
+    // Proteção Sênior: Verifica provas de autoridade
+    if (dashboardData.authority_proofs && Array.isArray(dashboardData.authority_proofs)) {
       dashboardData.authority_proofs.forEach((p: any) => {
         combined.push({
-          topic: p.title,
-          category: `Autoridade (${p.source})`,
+          topic: p.title || "Estudo indisponível",
+          category: `Autoridade (${p.source || 'Nicho'})`,
           heat: 'Estudo',
           source_type: 'proof',
           filterGroup: 'Authority Proof'
@@ -265,7 +270,7 @@ export default function DashboardPage() {
     }
   };
 
-  // === FUNÇÃO DE GERAÇÃO TÁTICA SOB DEMANDA ===
+  // === FUNÇÃO DE GERAÇÃO TÁTICA SOB DEMANDA (RADAR TRÍPLICE) ===
   const handleGenerateTacticalCopy = async (sourceType: 'trend' | 'proof', content: string) => {
     if (!tenantInfo || tenantInfo.id <= 0) return;
     setIsGeneratingTactics(true);
@@ -471,7 +476,7 @@ export default function DashboardPage() {
             <div className="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-none">
               {isLoadingDashboard ? (
                  <p className="text-xs text-gray-500 text-center mt-4 animate-pulse">Lendo comentários...</p>
-              ) : dashboardData?.radar?.length > 0 ? (
+              ) : dashboardData?.radar && dashboardData.radar.length > 0 ? (
                 dashboardData.radar.map((insight: any, i: number) => (
                   <div key={i} className="bg-black/50 p-3 rounded-lg border border-white/5 hover:border-[#d4af37]/30 transition-colors">
                     <p className="font-montserrat text-[0.65rem] text-gray-300 leading-relaxed italic truncate">"{insight.quote}"</p>

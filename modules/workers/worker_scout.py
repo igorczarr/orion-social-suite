@@ -8,7 +8,7 @@ import google.generativeai as genai
 from dotenv import load_dotenv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from database.connection import SessionLocal
+from database.connection import SessionLocal, init_db
 from database.models import TrackedProfile, SocialInsight, Tenant
 
 class YouTubeScoutRadar:
@@ -19,15 +19,27 @@ class YouTubeScoutRadar:
         self.ai_model = genai.GenerativeModel('gemini-2.5-flash')
         self.db = SessionLocal()
 
-    def get_target_tenants(self, target_tenant_id=None): # <-- Adicionado parâmetro
+    def get_target_tenants(self, target_tenant_id=None):
         query = self.db.query(Tenant).filter(Tenant.keywords != None)
         if target_tenant_id:
             query = query.filter(Tenant.id == target_tenant_id)
         return query.all()
 
-    # NOVO: Conta o volume atual para decidir entre Arrastão (1000) ou Manutenção (100)
     def check_tenant_volume(self, tenant_id: int) -> int:
         return self.db.query(SocialInsight).filter(SocialInsight.tenant_id == tenant_id).count()
+
+    def _purge_contaminated_data(self, tenant_id: int):
+        """
+        OPERAÇÃO LIXEIRO: Remove os dados velhos/errados (Trends e Notícias) 
+        que foram parar na tabela de Personas por erro do antigo motor.
+        """
+        print("  🧹 Limpando impurezas do banco (Expurgando dados de radar contaminados)...")
+        # Remove tudo que for Trend, Notícia ou que não tenha vindo do YouTube (O verdadeiro Scout)
+        self.db.query(SocialInsight).filter(
+            SocialInsight.tenant_id == tenant_id,
+            SocialInsight.platform != "YouTube"
+        ).delete()
+        self.db.commit()
 
     def search_youtube_trends(self, keyword: str, max_results=2):
         """Procura os vídeos mais relevantes sobre o tema."""
@@ -52,7 +64,6 @@ class YouTubeScoutRadar:
                 maxResults=100, order="relevance", textFormat="plainText"
             )
             
-            # ATUALIZADO: Loop de paginação para conseguir romper a barreira dos 100 iniciais
             while request and len(comments) < max_comments:
                 response = request.execute()
                 
@@ -62,15 +73,14 @@ class YouTubeScoutRadar:
                     if len(text.strip()) > 20:
                         comments.append(text.replace('\n', ' ').replace('"', "'"))
                 
-                # Prepara a próxima página
                 request = self.youtube.commentThreads().list_next(request, response)
                     
             return comments[:max_comments]
         except Exception as e:
             return comments
 
-    def classify_batch_with_ai(self, comments_list, niche):
-        """BATCH PROMPTING ATUALIZADO: Foco em encontrar o Oceano Azul."""
+    def classify_batch_with_ai(self, comments_list, niche, attempt=1):
+        """BATCH PROMPTING: Foco em encontrar o Oceano Azul. Com Rate Limiting."""
         if not comments_list:
             return []
 
@@ -103,11 +113,22 @@ class YouTubeScoutRadar:
             response = self.ai_model.generate_content(prompt).text
             clean_json = response.replace('```json', '').replace('```', '').strip()
             return json.loads(clean_json)
+            
         except Exception as e:
-            print(f"  ⚠️ Falha no Batch da IA: {str(e)[:100]}...")
+            error_msg = str(e)
+            if "429" in error_msg or "Quota exceeded" in error_msg:
+                if "PerDay" in error_msg:
+                    print(f"   🚨 Cota DIÁRIA do Gemini esgotada. Abortando IA.")
+                    return "QUOTA_EXHAUSTED"
+                elif attempt <= 3:
+                    print(f"   ⚠️ Rate Limit (Gemini). Pausando 30s (Tentativa {attempt}/3)...")
+                    time.sleep(30)
+                    return self.classify_batch_with_ai(comments_list, niche, attempt + 1)
+            
+            print(f"  ⚠️ Falha no Batch da IA: {error_msg[:100]}...")
             return []
 
-    def run_radar_cycle(self, target_tenant_id=None): # <-- Adicionado parâmetro
+    def run_radar_cycle(self, target_tenant_id=None):
         print("\n📡 ========================================================")
         print("📡 INICIANDO WORKER SCOUT (Escuta Ativa & Oceano Azul)")
         print("📡 ========================================================")
@@ -118,7 +139,11 @@ class YouTubeScoutRadar:
             return
 
         for tenant in tenants:
-            # LÓGICA DE ESCALA: Verifica quantos dados o cliente tem
+            print(f"\n🎯 Rastreador focado no Cliente: {tenant.name}")
+            
+            # --- EXPURGO DE DADOS CONTAMINADOS ---
+            self._purge_contaminated_data(tenant.id)
+            
             current_volume = self.check_tenant_volume(tenant.id)
             is_initial_load = current_volume < 1000
             
@@ -126,10 +151,13 @@ class YouTubeScoutRadar:
             videos_per_kw = 5 if is_initial_load else 2
             comments_per_video = 100 if is_initial_load else 50
 
-            print(f"\n🎯 Rastreador focado no Cliente: {tenant.name}")
-            print(f"  📊 Volume no Cofre: {current_volume} insights.")
+            print(f"  📊 Volume no Cofre: {current_volume} insights puros.")
             print(f"  ⚙️ Modo: {'ARRASTÃO INICIAL (Alvo: 1000)' if is_initial_load else 'MANUTENÇÃO (Alvo: 100)'}")
 
+            if not tenant.keywords:
+                print("  ⚠️ Cliente sem keywords. Pulando.")
+                continue
+                
             keywords = [k.strip() for k in tenant.keywords.split(',')]
             insights_salvos = 0
             all_comments = []
@@ -142,19 +170,18 @@ class YouTubeScoutRadar:
                 for vid in video_ids:
                     all_comments.extend(self.get_video_comments(vid, max_comments=comments_per_video))
                     if len(all_comments) >= target_volume:
-                        break # Otimização: para de buscar se já bateu a meta
+                        break 
                 
                 if len(all_comments) >= target_volume:
                     break
 
-            # Limita ao alvo exato para não gastar tokens à toa
             all_comments = all_comments[:target_volume]
 
             if not all_comments:
                 print("  ⚠️ Nenhum comentário relevante encontrado.")
                 continue
 
-            print(f"  🧠 {len(all_comments)} comentários extraídos. Iniciando análise Oceano Azul em lotes...")
+            print(f"  🧠 {len(all_comments)} comentários extraídos. Iniciando análise Oceano Azul...")
 
             # 2. Fase de Processamento IA
             chunk_size = 25
@@ -163,12 +190,18 @@ class YouTubeScoutRadar:
                 
                 classifications = self.classify_batch_with_ai(chunk, tenant.niche)
                 
+                if classifications == "QUOTA_EXHAUSTED":
+                    print("🛑 Abortando classificação para proteger o banco. Troque a API Key.")
+                    break
+                    
+                if not classifications:
+                    continue
+
                 for item in classifications:
                     idx = item.get('index', -1)
                     cat = item.get('categoria', 'Descarte')
                     intns = item.get('intensidade', 'Média')
                     
-                    # Salva apenas se for válido e não for lixo (Descarte)
                     if idx >= 0 and idx < len(chunk) and "Descarte" not in cat and "Indefinido" not in cat:
                         insight = SocialInsight(
                             tenant_id=tenant.id,
@@ -183,10 +216,8 @@ class YouTubeScoutRadar:
                         print(f"    ✅ Oceano Azul: [{cat}] {chunk[idx][:40]}...")
 
                 self.db.commit()
-
-                # Respiro anti-ban da Google
-                if i + chunk_size < len(all_comments):
-                    time.sleep(5)
+                # Pacing seguro para a IA gratuita
+                time.sleep(13)
 
             print(f"  💾 Total: {insights_salvos} novos insights gravados para {tenant.name}.")
 
@@ -196,6 +227,11 @@ class YouTubeScoutRadar:
 if __name__ == "__main__":
     load_dotenv()
     
+    try:
+        init_db()
+    except Exception as e:
+        pass
+
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     
