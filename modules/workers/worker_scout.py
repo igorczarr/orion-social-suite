@@ -1,22 +1,19 @@
+# modules/workers/worker_scout.py
 import sys
 import os
-import json
 import time
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
-import google.generativeai as genai
 from dotenv import load_dotenv
 
+# Ajuste de PATH para garantir importações corretas
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from database.connection import SessionLocal, init_db
 from database.models import TrackedProfile, SocialInsight, Tenant
 
 class YouTubeScoutRadar:
-    def __init__(self, youtube_api_key: str, gemini_api_key: str):
+    def __init__(self, youtube_api_key: str):
         self.youtube = build('youtube', 'v3', developerKey=youtube_api_key)
-        genai.configure(api_key=gemini_api_key)
-        # Usamos o flash que é rápido e lida bem com JSON
-        self.ai_model = genai.GenerativeModel('gemini-2.5-flash')
         self.db = SessionLocal()
 
     def get_target_tenants(self, target_tenant_id=None):
@@ -31,10 +28,9 @@ class YouTubeScoutRadar:
     def _purge_contaminated_data(self, tenant_id: int):
         """
         OPERAÇÃO LIXEIRO: Remove os dados velhos/errados (Trends e Notícias) 
-        que foram parar na tabela de Personas por erro do antigo motor.
+        que foram parar na tabela de Personas no passado.
         """
-        print("  🧹 Limpando impurezas do banco (Expurgando dados de radar contaminados)...")
-        # Remove tudo que for Trend, Notícia ou que não tenha vindo do YouTube (O verdadeiro Scout)
+        print("  🧹 Limpando impurezas do banco (Expurgando dados antigos ou de outras plataformas)...")
         self.db.query(SocialInsight).filter(
             SocialInsight.tenant_id == tenant_id,
             SocialInsight.platform != "YouTube"
@@ -79,58 +75,9 @@ class YouTubeScoutRadar:
         except Exception as e:
             return comments
 
-    def classify_batch_with_ai(self, comments_list, niche, attempt=1):
-        """BATCH PROMPTING: Foco em encontrar o Oceano Azul. Com Rate Limiting."""
-        if not comments_list:
-            return []
-
-        numbered_comments = "\n".join([f"[{i}] {c}" for i, c in enumerate(comments_list)])
-
-        prompt = f"""
-        Você é um estrategista de Oceano Azul operando no nicho: '{niche}'.
-        Sua missão é extrair VANTAGEM COMPETITIVA desses comentários reais do YouTube.
-        Ignorar elogios vazios. Focar em lacunas de mercado, demandas não atendidas e sentimentos profundos.
-        
-        {numbered_comments}
-        
-        Classifique CADA comentário usando ESTRITAMENTE estas categorias:
-        - "Demanda Oculta" (O mercado não está entregando isso)
-        - "Dor Subestimada" (Um problema que a maioria ignora)
-        - "Medo Paralisante" (O que impede a compra)
-        - "Aspiração Real" (O que eles realmente querem no fundo)
-        - "Objeção Clássica"
-        - "Descarte" (Comentários sem utilidade estratégica)
-        
-        Intensidade válida: "Baixa", "Média", "Alta", "Extrema".
-        
-        RETORNE APENAS UM JSON VÁLIDO no seguinte formato (sem formatação markdown ```json):
-        [
-          {{"index": 0, "categoria": "Demanda Oculta", "intensidade": "Alta"}},
-          {{"index": 1, "categoria": "Descarte", "intensidade": "Baixa"}}
-        ]
-        """
-        try:
-            response = self.ai_model.generate_content(prompt).text
-            clean_json = response.replace('```json', '').replace('```', '').strip()
-            return json.loads(clean_json)
-            
-        except Exception as e:
-            error_msg = str(e)
-            if "429" in error_msg or "Quota exceeded" in error_msg:
-                if "PerDay" in error_msg:
-                    print(f"   🚨 Cota DIÁRIA do Gemini esgotada. Abortando IA.")
-                    return "QUOTA_EXHAUSTED"
-                elif attempt <= 3:
-                    print(f"   ⚠️ Rate Limit (Gemini). Pausando 30s (Tentativa {attempt}/3)...")
-                    time.sleep(30)
-                    return self.classify_batch_with_ai(comments_list, niche, attempt + 1)
-            
-            print(f"  ⚠️ Falha no Batch da IA: {error_msg[:100]}...")
-            return []
-
     def run_radar_cycle(self, target_tenant_id=None):
         print("\n📡 ========================================================")
-        print("📡 INICIANDO WORKER SCOUT (Escuta Ativa & Oceano Azul)")
+        print("📡 INICIANDO WORKER SCOUT (Escuta Ativa em Massa - Data Lake)")
         print("📡 ========================================================")
 
         tenants = self.get_target_tenants(target_tenant_id)
@@ -147,12 +94,13 @@ class YouTubeScoutRadar:
             current_volume = self.check_tenant_volume(tenant.id)
             is_initial_load = current_volume < 1000
             
-            target_volume = 1000 if is_initial_load else 100
-            videos_per_kw = 5 if is_initial_load else 2
-            comments_per_video = 100 if is_initial_load else 50
+            # Ajuste de carga inteligente
+            target_volume = 500 if is_initial_load else 100
+            videos_per_kw = 3 if is_initial_load else 1
+            comments_per_video = 50 if is_initial_load else 30
 
-            print(f"  📊 Volume no Cofre: {current_volume} insights puros.")
-            print(f"  ⚙️ Modo: {'ARRASTÃO INICIAL (Alvo: 1000)' if is_initial_load else 'MANUTENÇÃO (Alvo: 100)'}")
+            print(f"  📊 Volume no Cofre: {current_volume} insights.")
+            print(f"  ⚙️ Modo: {'ARRASTÃO INICIAL (Alvo: 500)' if is_initial_load else 'MANUTENÇÃO (Alvo: 100)'}")
 
             if not tenant.keywords:
                 print("  ⚠️ Cliente sem keywords. Pulando.")
@@ -175,51 +123,34 @@ class YouTubeScoutRadar:
                 if len(all_comments) >= target_volume:
                     break
 
-            all_comments = all_comments[:target_volume]
+            # Remove duplicatas que possam vir de diferentes vídeos com comentários parecidos
+            all_comments = list(set(all_comments))[:target_volume]
 
             if not all_comments:
                 print("  ⚠️ Nenhum comentário relevante encontrado.")
                 continue
 
-            print(f"  🧠 {len(all_comments)} comentários extraídos. Iniciando análise Oceano Azul...")
+            print(f"  🧠 {len(all_comments)} comentários extraídos. Injetando diretamente no Data Lake (Bulk Insert)...")
 
-            # 2. Fase de Processamento IA
-            chunk_size = 25
-            for i in range(0, len(all_comments), chunk_size):
-                chunk = all_comments[i:i + chunk_size]
-                
-                classifications = self.classify_batch_with_ai(chunk, tenant.niche)
-                
-                if classifications == "QUOTA_EXHAUSTED":
-                    print("🛑 Abortando classificação para proteger o banco. Troque a API Key.")
-                    break
-                    
-                if not classifications:
-                    continue
+            # 2. Fase de Injeção no Banco (Sem IA)
+            batch_insert = []
+            for comment in all_comments:
+                insight = SocialInsight(
+                    tenant_id=tenant.id,
+                    platform="YouTube",
+                    quote=comment[:500], # Trava de segurança para o banco
+                    category="Escuta Bruta",
+                    intensity="Pendente",
+                    created_at=datetime.now(timezone.utc)
+                )
+                batch_insert.append(insight)
 
-                for item in classifications:
-                    idx = item.get('index', -1)
-                    cat = item.get('categoria', 'Descarte')
-                    intns = item.get('intensidade', 'Média')
-                    
-                    if idx >= 0 and idx < len(chunk) and "Descarte" not in cat and "Indefinido" not in cat:
-                        insight = SocialInsight(
-                            tenant_id=tenant.id,
-                            platform="YouTube",
-                            quote=chunk[idx][:500],
-                            category=cat,
-                            intensity=intns,
-                            created_at=datetime.now(timezone.utc)
-                        )
-                        self.db.add(insight)
-                        insights_salvos += 1
-                        print(f"    ✅ Oceano Azul: [{cat}] {chunk[idx][:40]}...")
-
+            if batch_insert:
+                self.db.add_all(batch_insert)
                 self.db.commit()
-                # Pacing seguro para a IA gratuita
-                time.sleep(13)
+                insights_salvos = len(batch_insert)
 
-            print(f"  💾 Total: {insights_salvos} novos insights gravados para {tenant.name}.")
+            print(f"  💾 Total: {insights_salvos} novos insights brutos gravados para {tenant.name}.")
 
         self.db.close()
         print("\n🔒 Varredura Scout finalizada com sucesso.")
@@ -233,10 +164,10 @@ if __name__ == "__main__":
         pass
 
     YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     
-    if not YOUTUBE_API_KEY or not GEMINI_API_KEY:
-        print("❌ Erro: YOUTUBE_API_KEY ou GEMINI_API_KEY não configurados no .env")
+    if not YOUTUBE_API_KEY:
+        print("❌ Erro: YOUTUBE_API_KEY não configurada no .env")
     else:
-        worker = YouTubeScoutRadar(YOUTUBE_API_KEY, GEMINI_API_KEY)
+        # A IA (Gemini) foi removida inteiramente deste motor
+        worker = YouTubeScoutRadar(YOUTUBE_API_KEY)
         worker.run_radar_cycle()
