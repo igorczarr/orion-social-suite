@@ -207,15 +207,15 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente."""
     
-    # 1. Cria o Cliente (Tenant)
+    # 1. Cria o Cliente (Tenant) - Sem injetar os relacionamentos em formato de string
     new_tenant = Tenant(
         owner_id=current_user.id,
         name=data.name,
         social_handle=data.social_handle,
         niche=data.niche,
-        keywords=data.keywords,
-        personas=data.personas,
-        competitors=data.competitors
+        keywords=data.keywords
+        # Removemos 'personas' e 'competitors' daqui, pois eles são processados 
+        # nas tabelas relacionais logo abaixo no código.
     )
     db.add(new_tenant)
     db.flush() # Pega o ID do tenant gerado
