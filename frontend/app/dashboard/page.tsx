@@ -153,38 +153,31 @@ export default function DashboardPage() {
     setSortConfig({ key, direction });
   };
 
-  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) [ATUALIZADO] ---
+// --- MOTOR UNIFICADO DO DATA LAKE (RADAR) [CORRIGIDO E ISOLADO] ---
   const unifiedRadarData = useMemo(() => {
     if (!dashboardData) return [];
     let combined: any[] = [];
 
-    // 1. Dores reais da audiência (O nosso novo Scout/Escuta Bruta)
-    if (dashboardData.radar && Array.isArray(dashboardData.radar)) {
-      dashboardData.radar.forEach((r: any) => {
-        combined.push({
-          topic: r.quote || "Sem conteúdo",
-          category: `Dor (${r.platform || 'Nicho'})`,
-          heat: 'Alta', // Intenção de dor é sempre alta
-          source_type: 'insight', // <- Gatilho específico para a IA ler dores
-          filterGroup: 'Trending Topics' // Colocamos as dores brutas nesta aba para visualização imediata
-        });
-      });
-    }
-
-    // 2. Tendências Globais (Google/X)
+    // 1. Tendências Globais (Google/X) - Estritamente Trends
     if (dashboardData.global_trends && Array.isArray(dashboardData.global_trends)) {
       dashboardData.global_trends.forEach((t: any) => {
+        const cat = t.category || "";
+        const catLower = cat.toLowerCase();
+        
         combined.push({
           topic: t.topic || "Tópico sem título",
-          category: t.category || "Trend",
+          category: cat,
           heat: t.heat || 'Alto',
           source_type: 'trend',
-          filterGroup: 'Global/Brasil'
+          // Roteamento exato para as Abas do Widget
+          filterGroup: (catLower.includes('entretenimento') || catLower.includes('x ') || catLower.includes('(x)')) 
+            ? 'Trending Topics' 
+            : 'Global/Brasil'
         });
       });
     }
 
-    // 3. Provas de Autoridade
+    // 2. Provas de Autoridade (Notícias/Estudos) - Estritamente Proofs
     if (dashboardData.authority_proofs && Array.isArray(dashboardData.authority_proofs)) {
       dashboardData.authority_proofs.forEach((p: any) => {
         combined.push({
@@ -197,6 +190,7 @@ export default function DashboardPage() {
       });
     }
 
+    // O Filtro das Abas ('Todos', 'Global/Brasil', 'Trending Topics', 'Authority Proof')
     if (radarFilter !== 'Todos') {
       combined = combined.filter(item => item.filterGroup === radarFilter);
     }
