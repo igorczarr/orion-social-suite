@@ -153,31 +153,38 @@ export default function DashboardPage() {
     setSortConfig({ key, direction });
   };
 
-  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) [BLINDADO / DEFENSIVO] ---
+  // --- MOTOR UNIFICADO DO DATA LAKE (RADAR) [ATUALIZADO] ---
   const unifiedRadarData = useMemo(() => {
     if (!dashboardData) return [];
     let combined: any[] = [];
 
-    // Proteção Sênior: Verifica se o array existe e é iterável antes do forEach
-    if (dashboardData.global_trends && Array.isArray(dashboardData.global_trends)) {
-      dashboardData.global_trends.forEach((t: any) => {
-        const cat = t.category || "";
-        const catLower = cat.toLowerCase();
-        
+    // 1. Dores reais da audiência (O nosso novo Scout/Escuta Bruta)
+    if (dashboardData.radar && Array.isArray(dashboardData.radar)) {
+      dashboardData.radar.forEach((r: any) => {
         combined.push({
-          topic: t.topic || "Tópico sem título",
-          category: cat,
-          heat: t.heat || 'Alto',
-          source_type: 'trend',
-          // Otimização de filtro: se tiver "x" ou "entretenimento", joga para os trending topics
-          filterGroup: (catLower.includes('entretenimento') || catLower.includes('x ') || catLower.includes('(x)')) 
-            ? 'Trending Topics' 
-            : 'Global/Brasil'
+          topic: r.quote || "Sem conteúdo",
+          category: `Dor (${r.platform || 'Nicho'})`,
+          heat: 'Alta', // Intenção de dor é sempre alta
+          source_type: 'insight', // <- Gatilho específico para a IA ler dores
+          filterGroup: 'Trending Topics' // Colocamos as dores brutas nesta aba para visualização imediata
         });
       });
     }
 
-    // Proteção Sênior: Verifica provas de autoridade
+    // 2. Tendências Globais (Google/X)
+    if (dashboardData.global_trends && Array.isArray(dashboardData.global_trends)) {
+      dashboardData.global_trends.forEach((t: any) => {
+        combined.push({
+          topic: t.topic || "Tópico sem título",
+          category: t.category || "Trend",
+          heat: t.heat || 'Alto',
+          source_type: 'trend',
+          filterGroup: 'Global/Brasil'
+        });
+      });
+    }
+
+    // 3. Provas de Autoridade
     if (dashboardData.authority_proofs && Array.isArray(dashboardData.authority_proofs)) {
       dashboardData.authority_proofs.forEach((p: any) => {
         combined.push({
@@ -190,7 +197,6 @@ export default function DashboardPage() {
       });
     }
 
-    // Aplica o filtro selecionado pelo usuário na aba
     if (radarFilter !== 'Todos') {
       combined = combined.filter(item => item.filterGroup === radarFilter);
     }
