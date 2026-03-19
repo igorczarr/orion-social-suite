@@ -15,8 +15,7 @@ from typing import List, Optional
 from sqlalchemy import desc
 from fastapi.middleware.cors import CORSMiddleware
 from database.connection import SessionLocal, init_db, engine
-from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget
-from modules.analytics.ai_engine import AIEngine
+from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget, TrendInsight, AuthorityProoffrom modules.analytics.ai_engine import AIEngine
 from modules.workers.trend_scraper import OmnidirectionalRadar
 from collections import defaultdict
 from modules.workers.apify_worker import OrionWorker
@@ -45,14 +44,21 @@ app = FastAPI(
     version="2.0.0"
 )
 
+# 🛡️ SOLUÇÃO CORS SÊNIOR: LISTA VIP EXPLÍCITA DE ORIGENS
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://orion-social-suite.vercel.app" # O endereço exato do seu painel
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https://.*\.vercel\.app", # Libera qualquer subdominio da Vercel
+    allow_origins=origins, # Passa a lista VIP exata
+    allow_origin_regex=r"https://.*\.vercel\.app", # Fallback para subdomínios Vercel
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 def clean_db_username(name: str) -> str:
     """Limpeza universal Sênior para casar os dados do Apify com o Banco."""
@@ -962,7 +968,8 @@ async def force_scheduler_sync(
             print("⏳ [CASCATA 3/3] Iniciando Radar Scout...")
             try:
                 from modules.workers.worker_scout import YouTubeScoutRadar
-                w3 = YouTubeScoutRadar(YOUTUBE_API_KEY, GEMINI_API_KEY)
+                # Removemos a necessidade de GEMINI_API_KEY no Scout (100% Gratuito/Bulk)
+                w3 = YouTubeScoutRadar(YOUTUBE_API_KEY)
                 w3.run_radar_cycle(target_tenant_id=tenant.id)
             except Exception as e3:
                 print(f"⚠️ Erro ao rodar o Scout: {e3}")
@@ -1036,8 +1043,8 @@ def generate_full_report(tenant_id: int, db: Session = Depends(get_db), current_
 
 # Schema para a nova rota
 class TacticalGenerateRequest(BaseModel):
-    source_type: str # 'trend' ou 'proof'
-    content: str     # O título da notícia ou o assunto do X
+    source_type: str # 'trend', 'proof' ou 'insight'
+    content: str
 
 @app.post("/api/ai/generate-tactical-copy/{tenant_id}")
 async def generate_tactical_copy(
@@ -1065,6 +1072,14 @@ async def generate_tactical_copy(
         2. A AUTORIDADE (Como citar essa notícia de forma impactante).
         3. A DOR (Conectar a notícia com a dor da persona: {tenant.personas}).
         4. O CTA (Chamada para ação agressiva).
+        """
+    elif req.source_type == "insight":
+        prompt = f"""
+        Como Estrategista Sênior, analise este comentário/dor real extraído de um potencial cliente do nicho de {tenant.niche}: 
+        "{req.content}"
+        
+        Sua missão: Crie uma tática de conteúdo (Reels/Carrossel) que responda EXATAMENTE a essa dor e posicione nossa marca como a solução. 
+        Entregue o Gancho Principal e o Resumo da Estratégia.
         """
     else:
         prompt = f"""
