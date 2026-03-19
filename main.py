@@ -15,8 +15,7 @@ from typing import List, Optional
 from sqlalchemy import desc
 from fastapi.middleware.cors import CORSMiddleware
 from database.connection import SessionLocal, init_db, engine
-from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget, TrendInsight, AuthorityProoffrom modules.analytics.ai_engine import AIEngine
-from modules.workers.trend_scraper import OmnidirectionalRadar
+from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget, TrendInsight, AuthorityProof
 from collections import defaultdict
 from modules.workers.apify_worker import OrionWorker
 
