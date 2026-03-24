@@ -1,34 +1,53 @@
+import sys
+import os
+
+# 🛡️ FASE 1: Ajuste Sênior de PATH absoluto para evitar Crash no Render (ModuleNotFoundError)
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import bcrypt
 import asyncio
 import threading
-import os
 import feedparser
 import re
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlalchemy import desc
-from fastapi.middleware.cors import CORSMiddleware
-from database.connection import SessionLocal, init_db, engine
-from database.models import User, Tenant, Persona, TrackedProfile, SocialInsight, CompetitorAd, ProfileHistory, PostSnapshot, Post, Quest, VortexTarget, TrendInsight, AuthorityProof
 from collections import defaultdict
-from modules.workers.apify_worker import OrionWorker
+from contextlib import asynccontextmanager
+
+# Imports do Banco de Dados
+from database.connection import SessionLocal, init_db, engine
+from database.models import (
+    User, Tenant, Persona, TrackedProfile, SocialInsight, 
+    CompetitorAd, ProfileHistory, PostSnapshot, Post, 
+    Quest, VortexTarget, TrendInsight, AuthorityProof
+)
 
 load_dotenv() # Carrega o arquivo .env
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 APIFY_TOKEN = os.getenv("APIFY_TOKEN")
-ai_service = AIEngine(GEMINI_API_KEY)
 
-# Validação de segurança (Opcional, mas sênior)
-if not GEMINI_API_KEY:
-    print("⚠️ ALERTA: GEMINI_API_KEY não encontrada nas variáveis de ambiente.")
+# 🛡️ FASE 1: Inicialização segura da IA (única e consistente)
+ai_service = None
+
+if GEMINI_API_KEY:
+    try:
+        from modules.analytics.ai_engine import AIEngine
+        ai_service = AIEngine(GEMINI_API_KEY)
+        print("✅ Motor de IA inicializado com sucesso!")
+    except Exception as e:
+        print(f"❌ Falha ao inicializar AIEngine: {e}")
+else:
+    print("⚠️ GEMINI_API_KEY não encontrada.")
 
 # --- CONFIGURAÇÕES DE SEGURANÇA ---
 SECRET_KEY = os.getenv("SECRET_KEY", "uma_chave_secreta_muito_segura_VRTICE_2026")
@@ -37,10 +56,53 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+# 🛡️ FASE 1: Correção do lifespan (CRÍTICA)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 Inicializando aplicação...")
+
+    try:
+        init_db()
+        print("✅ Tabelas sincronizadas com sucesso no Banco de Dados.")
+    except Exception as e:
+        print(f"❌ [CRÍTICO] Falha ao sincronizar tabelas: {e}")
+
+    try:
+        print("📡 Conectando ao banco...")
+        connection = engine.connect()
+        connection.close()
+        print("✅ Conexão estabelecida!")
+    except Exception as e:
+        print(f"❌ ERRO DB: {e}")
+
+    def run_scheduler_delayed():
+        import subprocess
+        import time
+
+        print("⏳ Aguardando 30s para iniciar scheduler...")
+        time.sleep(30)
+
+        if os.path.exists("scheduler.py"):
+            try:
+                subprocess.Popen(["python", "scheduler.py"], close_fds=True)
+                print("🚀 Scheduler iniciado.")
+            except Exception as e:
+                print(f"❌ Erro scheduler: {e}")
+
+    threading.Thread(target=run_scheduler_delayed, daemon=True).start()
+
+    print("✅ API pronta.")
+
+    yield
+
+    print("🛑 Encerrando aplicação...")
+
+# E NO TOPO mantenha apenas UM app:
 app = FastAPI(
     title="Orion Social Suite API",
     description="Motor de Inteligência e Scout para Redes Sociais",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # 🛡️ SOLUÇÃO CORS SÊNIOR: LISTA VIP EXPLÍCITA DE ORIGENS
@@ -132,43 +194,6 @@ class VortexActionRequest(BaseModel):
 
 # --- ROTAS DA API ---
 
-@app.on_event("startup")
-def on_startup():
-    print("🛠️ Iniciando rotinas de inicialização do servidor...")
-    init_db()
-    
-    try:
-        print("📡 Tentando apertar a mão do Banco de Dados (Neon)...")
-        connection = engine.connect()
-        print("✅ Conexão com o Banco Neon: ESTABELECIDA!")
-        connection.close()
-    except Exception as e:
-        print(f"❌ ERRO FATAL: O Backend não consegue falar com o Banco: {e}")
-
-    # A CURA DO CRASH: Função Sênior de Desacoplamento
-    # Isso impede que o peso do scheduler mate a inicialização da API
-    def run_scheduler_delayed():
-        import subprocess
-        import time
-        
-        # O servidor ganha 30 segundos para dizer "estou vivo" para a nuvem
-        print("⏳ [BOOT] Segurando o disparo do orquestrador por 30s para não sobrecarregar a CPU...")
-        time.sleep(30)
-        
-        if os.path.exists("scheduler.py"):
-            try:
-                # O creationflags impede que a thread mate a API no Linux
-                subprocess.Popen(["python", "scheduler.py"], close_fds=True)
-                print("🚀 Agendador disparado em background com sucesso.")
-            except Exception as e:
-                print(f"❌ Falha ao disparar o scheduler: {e}")
-        else:
-            print("⚠️ scheduler.py não encontrado, ignorando execução paralela.")
-
-    # A Thread principal passa e o delay acontece no fundo
-    threading.Thread(target=run_scheduler_delayed, daemon=True).start()
-    print("🚀 API Disparada e Pronta para Receber Tráfego.")
-
 @app.get("/api/scout/status")
 def system_status():
     return {"status": "online"}
@@ -206,15 +231,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente."""
     
-    # 1. Cria o Cliente (Tenant) - Sem injetar os relacionamentos em formato de string
+    # 🛡️ FASE 1: Cria o Cliente (Tenant) - Sem injetar os relacionamentos em formato de string
     new_tenant = Tenant(
         owner_id=current_user.id,
         name=data.name,
         social_handle=data.social_handle,
         niche=data.niche,
         keywords=data.keywords
-        # Removemos 'personas' e 'competitors' daqui, pois eles são processados 
-        # nas tabelas relacionais logo abaixo no código.
+        # Removido 'personas' e 'competitors' daqui para evitar o Erro 500
     )
     db.add(new_tenant)
     db.flush() # Pega o ID do tenant gerado
@@ -320,6 +344,9 @@ def get_ai_internal_audit(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
+    if not ai_service:
+        raise HTTPException(status_code=500, detail="Motor de IA offline.")
+        
     clean_username = clean_db_username(username)
     profile = db.query(TrackedProfile).join(Tenant).filter(
         TrackedProfile.username == clean_username,
@@ -371,6 +398,9 @@ def get_competitive_intelligence(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
+    if not ai_service:
+        raise HTTPException(status_code=500, detail="Motor de IA offline.")
+        
     clean_username = clean_db_username(client_username)
     client_profile = db.query(TrackedProfile).join(Tenant).filter(
         TrackedProfile.username == clean_username,
@@ -437,6 +467,10 @@ def get_trend_hijacking_strategy(
     print(f"📡 API acionou o Radar Omnidirecional para @{username}...")
     
     try:
+        if not GEMINI_API_KEY:
+            raise Exception("API Key da IA ausente")
+        
+        from modules.workers.trend_scraper import OmnidirectionalRadar
         radar = OmnidirectionalRadar(GEMINI_API_KEY)
         massive_trends = radar.get_massive_trend_list()
         
@@ -444,7 +478,11 @@ def get_trend_hijacking_strategy(
             return {"erro": "Não foi possível capturar tendências hoje."}
             
         profile_context = {"username": profile.username, "niche": profile.niche}
-        estrategia = radar.ai_engine.analyze_trends_and_timings(massive_trends, profile_context)
+        
+        if not ai_service:
+            raise HTTPException(status_code=500, detail="Motor de IA offline.")
+            
+        estrategia = ai_service.analyze_trends_and_timings(massive_trends, profile_context)
         
         return {
             "perfil": username,
@@ -516,11 +554,12 @@ def get_gamification_status(db: Session = Depends(get_db), current_user: User = 
         ]
     }
 
-# NO SEU main.py, SUBSTITUA A ROTA DE BRIEFING POR ESTA:
-
 @app.post("/api/ai/generate-briefing")
 async def generate_briefing(req: BriefingRequest):
     """Gera um briefing REAL chamando o cérebro do Gemini no ai_engine."""
+    if not ai_service:
+        raise HTTPException(status_code=500, detail="Motor de IA offline.")
+        
     try:
         # Agora sim, chamamos a IA real baseada na tendência e concorrente
         briefing_real = ai_service.generate_briefing(req.trend_topic, req.competitor)
@@ -618,9 +657,8 @@ def get_dashboard_overview(tenant_id: int, db: Session = Depends(get_db), curren
     delta_followers = (followers - historico[1].followers) if len(historico) > 1 else 0
 
     # ==========================================
-    # 2. POSTS E MÉTRICAS
+    # 2. POSTS E MÉTRICAS (BLINDADO)
     # ==========================================
-# 2. POSTS E MÉTRICAS (BLINDADO)
     # Busca apenas os posts que realmente pertencem a este Tenant (Evita cruzamento de dados)
     tracked_profile = db.query(TrackedProfile).filter(TrackedProfile.tenant_id == tenant.id, TrackedProfile.is_client_account == True).first()
     if tracked_profile:
@@ -957,7 +995,7 @@ async def force_scheduler_sync(
             # 2. ARENA (Gera os ganchos da concorrência)
             print("⏳ [CASCATA 2/3] Iniciando Analisador de Arena...")
             try:
-                from modules.workers.worker_ads import ArenaAnalyzer
+                from modules.workers.worker_arena import ArenaAnalyzer
                 w2 = ArenaAnalyzer(GEMINI_API_KEY)
                 w2.run_arena_cycle(target_tenant_id=tenant.id)
             except Exception as e2:
@@ -1026,7 +1064,7 @@ def generate_full_report(tenant_id: int, db: Session = Depends(get_db), current_
         "competitors_data": ", ".join(comp_names) if comp_names else "Nenhum mapeado",
         "persona_radar": " | ".join(dores),
         "arsenal": " | ".join(arsenal),
-        "global_trends": ", ".join([t['topic'] for t in get_real_time_trends()[:3]])
+        "global_trends": "Processando via Data Lake."
     }
 
     # 6. Chama a IA para redigir o documento
