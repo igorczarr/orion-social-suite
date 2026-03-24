@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Float, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Float, UniqueConstraint, JSON
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -44,12 +44,17 @@ class Tenant(Base):
     created_at = Column(DateTime, default=datetime.now)
     keywords = Column(String, nullable=True)
     
+    # FASE 5: Preparação para o Cofre de Credenciais do Vortex (Criptografado)
+    encrypted_ig_session = Column(Text, nullable=True)
+    
     # Relações Descendentes (O que pertence a este cliente)
     owner = relationship("User", back_populates="tenants")
     personas = relationship("Persona", back_populates="tenant", cascade="all, delete")
     tracked_profiles = relationship("TrackedProfile", back_populates="tenant", cascade="all, delete")
     social_insights = relationship("SocialInsight", back_populates="tenant", cascade="all, delete")
     quests = relationship("Quest", back_populates="tenant", cascade="all, delete")
+    # Novas Relações (FASE 3 - OSINT Elite)
+    persona_dossiers = relationship("PersonaDossier", back_populates="tenant", cascade="all, delete")
 
 class Persona(Base):
     """Público-Alvo mapeado para o Oráculo e Calibrador de IA."""
@@ -73,7 +78,7 @@ class TrackedProfile(Base):
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False)
-    username = Column(String, index=True, nullable=False) # Removido o Unique global para permitir que 2 clientes rastreiem a @zara
+    username = Column(String, index=True, nullable=False)
     niche = Column(String) 
     is_client_account = Column(Boolean, default=False) # True = Nossa Conta / False = Concorrente (Arena)
     is_active = Column(Boolean, default=True)
@@ -83,6 +88,8 @@ class TrackedProfile(Base):
     
     tenant = relationship("Tenant", back_populates="tracked_profiles")
     ads = relationship("CompetitorAd", back_populates="tracked_profile", cascade="all, delete")
+    # FASE 3: O Diário de Guerra do Concorrente
+    war_room_entries = relationship("CompetitorWarRoom", back_populates="tracked_profile", cascade="all, delete")
 
 class SocialInsight(Base):
     """OUVIDORIA SOCIAL: O Big Data da página Scout (Dores, Medos, Aspirações)."""
@@ -111,6 +118,53 @@ class CompetitorAd(Base):
     last_seen_at = Column(DateTime, default=datetime.now)
     
     tracked_profile = relationship("TrackedProfile", back_populates="ads")
+
+# =====================================================================
+# NOVA FASE 3: OSINT & ESPIONAGEM DE ELITE (Corporate Level)
+# =====================================================================
+
+class PersonaDossier(Base):
+    """
+    O Sociólogo: Salva o estudo macro-psicológico e comportamental (JTBD, Nível de Consciência)
+    gerado pela IA após processar o Data Lake de comentários.
+    """
+    __tablename__ = 'persona_dossiers'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id'), nullable=False)
+    
+    macro_sentiment = Column(String) # Ex: "Cínico e Cansado", "Iniciante Esperançoso"
+    core_desire = Column(Text)       # O Jobs-to-be-Done real
+    hidden_objection = Column(Text)  # Fricção Oculta
+    awareness_level = Column(String) # Ex: "Consciente da Solução"
+    
+    golden_quotes = Column(JSON)     # Dicionário guardando as "Provas Reais" do Data Lake
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant", back_populates="persona_dossiers")
+
+class CompetitorWarRoom(Base):
+    """
+    O Espião: Arquivo confidencial das campanhas orgânicas ou pagas de CADA concorrente, 
+    desenhando a engenharia reversa do Funil e a Matriz Oceano Azul.
+    """
+    __tablename__ = 'competitor_war_room'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tracked_profile_id = Column(Integer, ForeignKey('tracked_profiles.id'), nullable=False)
+    
+    campaign_url = Column(String, nullable=False) # Link para visualização na interface (TikTok/IG)
+    detected_hook = Column(Text)                  # O Gancho Mental
+    cialdini_trigger = Column(String)             # Qual gatilho mental detectado (Escassez, Autoridade)
+    
+    # A Matriz Oceano Azul (O Contra-Ataque)
+    market_gap = Column(Text)                     # A Lacuna que ele deixou vazia
+    counter_strategy = Column(Text)               # Como o Orion sugere aniquilar essa campanha
+    
+    detected_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tracked_profile = relationship("TrackedProfile", back_populates="war_room_entries")
 
 # =====================================================================
 # MÓDULO 4: HISTÓRICO E ORÁCULO (A Máquina de Previsão)
@@ -174,7 +228,7 @@ class Quest(Base):
     tenant = relationship("Tenant", back_populates="quests")
     assigned_to = relationship("User", back_populates="quests")
 
-    # =====================================================================
+# =====================================================================
 # MÓDULO 6: VÓRTEX (Infiltração e Lookalike)
 # =====================================================================
 

@@ -24,7 +24,10 @@ export default function DashboardPage() {
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
   
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
-  const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'ytd'>('30d');
+  
+  // 🔓 FASE 4 (Task 4.3): Estado inicial alterado para 'ytd' para destravar a matriz
+  const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'ytd'>('ytd');
+  
   const [selectedCompetitorIdx, setSelectedCompetitorIdx] = useState<number>(0);
 
   // Filtro inteligente para o novo Radar Unificado
@@ -759,13 +762,73 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[0.65rem] uppercase tracking-widest text-gray-400 mb-2">Nicho de Mercado</label>
-                  <select value={formData.niche} onChange={e => setFormData({...formData, niche: e.target.value})} className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-[#d4af37] outline-none cursor-pointer">
-                    <option value="Moda & Vestuário">Moda & Vestuário</option>
-                    <option value="Beleza & Cosmética">Beleza & Cosmética</option>
-                    <option value="InfoProduto / Educação">InfoProduto / Educação</option>
-                    <option value="Serviços Corporativos">Serviços Corporativos</option>
-                  </select>
+                  <label className="block text-[0.65rem] uppercase tracking-widest text-gray-400 mb-2">
+  Nicho de Mercado
+</label>
+
+<select
+  value={formData.niche}
+  onChange={e => setFormData({ ...formData, niche: e.target.value })}
+  className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-[#d4af37] outline-none cursor-pointer"
+>
+
+  <optgroup label="Moda & Vestuário">
+    <option value="Moda Feminina">Moda Feminina</option>
+    <option value="Moda Masculina">Moda Masculina</option>
+    <option value="Moda Fitness">Moda Fitness</option>
+    <option value="Moda Infantil">Moda Infantil</option>
+    <option value="Moda Plus Size">Moda Plus Size</option>
+    <option value="Moda Praia">Moda Praia</option>
+    <option value="Streetwear">Streetwear</option>
+  </optgroup>
+
+  <optgroup label="Beleza & Cosmética">
+    <option value="Maquiagem Profissional">Maquiagem Profissional</option>
+    <option value="Skincare">Skincare</option>
+    <option value="Cabelos / Tricologia">Cabelos / Tricologia</option>
+    <option value="Barbearia">Barbearia</option>
+    <option value="Estética Facial">Estética Facial</option>
+    <option value="Estética Corporal">Estética Corporal</option>
+    <option value="Nail Designer">Nail Designer</option>
+  </optgroup>
+
+  <optgroup label="Educação & Infoprodutos">
+    <option value="Cursos Online">Cursos Online</option>
+    <option value="Mentoria">Mentoria</option>
+    <option value="Preparatório (ENEM/Concursos)">Preparatório (ENEM/Concursos)</option>
+    <option value="Idiomas">Idiomas</option>
+    <option value="Educação Financeira">Educação Financeira</option>
+    <option value="Marketing Digital">Marketing Digital</option>
+    <option value="Programação & Tecnologia">Programação & Tecnologia</option>
+  </optgroup>
+
+  <optgroup label="Serviços Profissionais">
+    <option value="Advocacia">Advocacia</option>
+    <option value="Contabilidade">Contabilidade</option>
+    <option value="Consultoria Empresarial">Consultoria Empresarial</option>
+    <option value="Design Gráfico">Design Gráfico</option>
+    <option value="Web Design">Web Design</option>
+    <option value="Social Media">Social Media</option>
+    <option value="Copywriting">Copywriting</option>
+  </optgroup>
+
+  <optgroup label="Saúde & Bem-estar">
+    <option value="Personal Trainer">Personal Trainer</option>
+    <option value="Nutrição">Nutrição</option>
+    <option value="Psicologia">Psicologia</option>
+    <option value="Fisioterapia">Fisioterapia</option>
+    <option value="Terapias Alternativas">Terapias Alternativas</option>
+  </optgroup>
+
+  <optgroup label="Outros Negócios">
+    <option value="Restaurantes & Alimentação">Restaurantes & Alimentação</option>
+    <option value="Delivery">Delivery</option>
+    <option value="E-commerce Geral">E-commerce Geral</option>
+    <option value="Dropshipping">Dropshipping</option>
+    <option value="Afiliados">Afiliados</option>
+  </optgroup>
+
+</select>
                 </div>
                 <div>
                   <label className="block text-[0.65rem] uppercase tracking-widest text-gray-400 mb-2">Personas Alvo</label>

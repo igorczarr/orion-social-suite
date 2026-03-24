@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
+from modules.security.vault import vault
 import bcrypt
 import asyncio
 import threading
@@ -32,9 +33,15 @@ from database.models import (
 
 load_dotenv() # Carrega o arquivo .env
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# No topo do main.py, adicione a leitura das novas chaves:
+GEMINI_KEY_SOCIOLOGO = os.getenv("GEMINI_KEY_SOCIOLOGO")
+GEMINI_KEY_ESPIAO = os.getenv("GEMINI_KEY_ESPIAO")
+GEMINI_KEY_TRENDS = os.getenv("GEMINI_KEY_TRENDS")
+GEMINI_KEY_COPY = os.getenv("GEMINI_KEY_COPY")
+GEMINI_KEY_CMO = os.getenv("GEMINI_KEY_CMO")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 APIFY_TOKEN = os.getenv("APIFY_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # 🛡️ FASE 1: Inicialização segura da IA (única e consistente)
 ai_service = None
@@ -191,6 +198,9 @@ class AdjustmentRequest(BaseModel):
 class VortexActionRequest(BaseModel):
     target_id: int
     action: str
+
+class VortexAuthRequest(BaseModel):
+    session_cookie: str
 
 # --- ROTAS DA API ---
 
@@ -571,20 +581,19 @@ async def generate_briefing(req: BriefingRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-class VortexActionRequest(BaseModel):
-    target_id: int
-    action: str  # 'engaged' ou 'ignored'
+# =====================================================================
+# VORTEX (INFILTRAÇÃO E AUTOMAÇÃO ATIVA - FASE 5)
+# =====================================================================
 
 @app.get("/api/vortex/{tenant_id}")
 def get_vortex_queue(tenant_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """
-    Puxa a fila de alvos qualificados (status='pending') para o Terminal Sniper.
-    Ordena pelos maiores 'Match Scores' primeiro.
-    """
-    # Valida segurança: O usuário logado é dono deste tenant?
+    """Puxa a fila de alvos e verifica se o Módulo Sniper está armado (Cookie salvo)."""
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Cliente não encontrado ou acesso negado.")
+        
+    # Verifica se o cliente tem um cookie guardado no cofre
+    is_armed = bool(tenant.encrypted_ig_session)
         
     targets = db.query(VortexTarget).filter(
         VortexTarget.tenant_id == tenant_id,
@@ -606,12 +615,29 @@ def get_vortex_queue(tenant_id: int, db: Session = Depends(get_db), current_user
             "status": t.status
         })
         
-    return {"status": "success", "targets": payload}
+    return {"status": "success", "is_armed": is_armed, "targets": payload}
+
+@app.post("/api/vortex/{tenant_id}/auth")
+def authenticate_vortex(tenant_id: int, req: VortexAuthRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Guarda o Cookie de Sessão no Cofre Criptográfico."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    try:
+        # Criptografa o cookie imediatamente antes de tocar no banco
+        encrypted_cookie = vault.encrypt(req.session_cookie)
+        tenant.encrypted_ig_session = encrypted_cookie
+        db.commit()
+        return {"status": "success", "message": "Sessão encriptada e guardada no cofre com segurança militar."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/vortex/action")
-def register_vortex_action(req: VortexActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def register_vortex_action(req: VortexActionRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """
     Registra no banco de dados que a equipe engajou ou ignorou um alvo.
+    Aperta o gatilho. Dispara o robô fantasma em background se a ação for 'engaged'.
     """
     target = db.query(VortexTarget).filter(VortexTarget.id == req.target_id).first()
     
@@ -627,13 +653,29 @@ def register_vortex_action(req: VortexActionRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="Ação inválida. Use 'engaged' ou 'ignored'.")
         
     target.status = req.action
-    db.commit()
     
-    # AQUI ENTRA A GAMIFICAÇÃO FUTURA: Se a ação foi 'engaged', dar +5 XP ao current_user.
     if req.action == 'engaged':
         current_user.xp_total += 5
-        db.commit()
-    
+        
+        # 🛡️ DISPARO ATIVO (BACKGROUND TASK)
+        if tenant.encrypted_ig_session:
+            # Descriptografa na hora de usar
+            decrypted_cookie = vault.decrypt(tenant.encrypted_ig_session)
+            
+            def run_ghost_attack():
+                try:
+                    from modules.workers.worker_vortex import GhostOperator
+                    operator = GhostOperator(decrypted_cookie)
+                    operator.execute_engagement(target.username, target.suggested_hook)
+                except Exception as e:
+                    print(f"❌ [VORTEX BACKGROUND ERRO] Falha ao atacar @{target.username}: {e}")
+            
+            # Envia a tarefa para o background para a API não travar
+            background_tasks.add_task(run_ghost_attack)
+        else:
+            print(f"⚠️ [VORTEX] Cliente marcou 'Engaged', mas o Módulo Sniper está desarmado (Sem Cookie). Ação registrada apenas virtualmente.")
+
+    db.commit()
     return {"status": "success", "message": f"Alvo {req.action} registrado.", "new_xp": current_user.xp_total}
 
 @app.get("/api/dashboard/{tenant_id}/overview")
@@ -979,27 +1021,19 @@ async def force_scheduler_sync(
         raise HTTPException(status_code=404, detail="Cliente não encontrado.")
 
     def run_full_cascade():
-        print(f"\n🚀 [CASCATA] Iniciando atualização COMPLETA para o cliente: {tenant.name}")
-        
-        try:
-            # 1. ORGÂNICO (Apify - Posts, Seguidores)
-            print("⏳ [CASCATA 1/3] Iniciando Rastreador Orgânico...")
-            from modules.workers.apify_worker import OrionWorker
-            w1 = OrionWorker(APIFY_TOKEN)
-            w1.run(target_tenant_id=tenant.id)
-            
-            # Pausa de segurança para o Banco de Dados salvar as transações
-            import time
-            time.sleep(5)
-
-            # 2. ARENA (Gera os ganchos da concorrência)
-            print("⏳ [CASCATA 2/3] Iniciando Analisador de Arena...")
+            print("⏳ [CASCATA OSINT] Iniciando Motor de Espionagem e Sociologia...")
             try:
-                from modules.workers.worker_arena import ArenaAnalyzer
-                w2 = ArenaAnalyzer(GEMINI_API_KEY)
-                w2.run_arena_cycle(target_tenant_id=tenant.id)
-            except Exception as e2:
-                print(f"⚠️ Erro ao rodar a Arena: {e2}")
+                from modules.workers.worker_osint import OrionOSINT
+                
+                # O motor agora respira através de chaves distintas
+                osint_worker = OrionOSINT(
+                    apify_token=APIFY_TOKEN, 
+                    key_sociologo=GEMINI_KEY_SOCIOLOGO,
+                    key_espiao=GEMINI_KEY_ESPIAO
+                )
+                osint_worker.run_full_recon(tenant_id=tenant.id)
+            except Exception as e_osint:
+                print(f"⚠️ Erro ao rodar o Motor OSINT: {e_osint}")
 
             # 3. SCOUT (Escuta Ativa no YouTube)
             print("⏳ [CASCATA 3/3] Iniciando Radar Scout...")
@@ -1010,10 +1044,6 @@ async def force_scheduler_sync(
                 w3.run_radar_cycle(target_tenant_id=tenant.id)
             except Exception as e3:
                 print(f"⚠️ Erro ao rodar o Scout: {e3}")
-
-            print(f"✅ [CASCATA] Atualização 100% finalizada para {tenant.name}!")
-        except Exception as e:
-            print(f"❌ [CASCATA] Falha fatal durante a cadeia de operações: {e}")
 
     # Aciona a cascata em segundo plano
     background_tasks.add_task(run_full_cascade)

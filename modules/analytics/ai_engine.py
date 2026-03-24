@@ -40,90 +40,102 @@ class AIEngine:
         niche = profile_context.get('niche', 'Geral')
         
         return f"""
-        Você é o Chief Marketing Officer (CMO) e Head de Estratégia da @{username}, focado no nicho de '{niche}'.
-        Sua mente opera com base em dados, neurociência do consumidor, copywriting de alta conversão e Growth Hacking.
-        
+        Você é o Chief Marketing Officer (CMO) de Elite e Head de Estratégia da @{username}, atuando no mercado de '{niche}'.
+        Sua experiência combina o rigor analítico de Wall Street (Equity Research) com a genialidade criativa das maiores agências de publicidade do mundo.
+
+        FRAMEWORKS OPERACIONAIS OBRIGATÓRIOS NO SEU RACIOCÍNIO:
+        1. Níveis de Consciência de Eugene Schwartz: (Inconsciente > Consciente do Problema > Consciente da Solução > Consciente do Produto > Totalmente Consciente).
+        2. Jobs-to-be-Done (JTBD): As pessoas não compram produtos, "contratam" soluções para progredir na vida. Identifique a real motivação de compra.
+        3. Framework STEPPS de Viralidade (Jonah Berger): Moeda Social, Gatilhos, Emoção, Público, Valor Prático, Histórias.
+        4. Matriz ERRC (Oceano Azul): Eliminar, Reduzir, Elevar, Criar.
+
         DIRETRIZES DE COMPORTAMENTO (STRICT):
-        1. ZERO FLUFF: Sem "olá", "excelente post", ou introduções amigáveis. Seja denso, direto e executivo.
-        2. TONS E FRAMEWORKS: Use linguagem técnica de negócios (LTV, CAC, Churn, Fricção, Market Share, Funil AIDA, Gatilhos Mentais).
-        3. FOCO EM LUCRO E DOMINAÇÃO: Engajamento é vaidade se não gerar retenção, autoridade ou vendas. 
-        4. AUTENTICIDADE: Aja como um humano sênior avaliando a própria empresa e os inimigos (concorrentes).
+        - ZERO FLUFF: Sem "Olá", sem jargões vazios, sem otimismo tóxico. Seja denso, letal, direto e cirúrgico.
+        - TONS E MÉTRICAS: Use terminologia executiva (LTV, CAC, Churn, Fricção de UX, Market Share, Taxa de Retenção).
+        - POSTURA: Você não busca "likes". Você busca Dominação de Mercado, construção de Fosso Competitivo (Moat) e conversão em vendas.
         """
 
     def generate_internal_audit(self, profile_data: dict, recent_posts: list) -> str:
         """1. Auditoria Interna: Analisa a própria casa."""
         prompt = f"""
-        DADOS INTERNOS DA CONTA:
-        {json.dumps(profile_data, indent=2)}
+        DADOS INTERNOS DA CONTA E NICHO:
+        {json.dumps(profile_data, indent=2, ensure_ascii=False)}
         
-        ÚLTIMOS POSTS (Tração e Conteúdo):
-        {json.dumps(recent_posts, indent=2)}
+        AMOSTRAGEM DOS ÚLTIMOS POSTS (Tração e Conteúdo):
+        {json.dumps(recent_posts, indent=2, ensure_ascii=False)}
         
-        Realize uma Auditoria Interna rigorosa. Entregue um diagnóstico abordando:
-        **1. Saúde do Funil:** O conteúdo atual está focado apenas em topo de funil (atração) ou estamos retendo e convertendo?
-        **2. Padrões de Sucesso/Fracasso:** Qual formato ou tema está claramente carregando o engajamento da conta nas costas? O que está drenando nossa energia e deve ser cortado?
-        **3. Diagnóstico de Marca:** A percepção de valor que estamos passando condiz com uma marca premium do nicho?
+        EXECUTE UMA AUDITORIA CLÍNICA DE MARCA (BRAND EQUITY) E FUNIL. Entregue um diagnóstico abordando:
+        
+        **1. Alinhamento com Eugene Schwartz:** Em qual nível de consciência este conteúdo está focando predominantemente? Estamos educando o mercado ou apenas gritando ofertas para um público surdo?
+        **2. Eficiência de Tração (Gargalos):** Baseado na relação curtidas/comentários e formatos, o que está drenando o nosso CAC (Custo de Aquisição de Atenção) e deve ser extirpado da linha editorial?
+        **3. Diagnóstico de Posicionamento:** A narrativa textual destes posts constrói autoridade premium ou nos posiciona como mais um "commodity" no nicho? Aponte a maior Fricção identificada.
         """
         return self._call_ai(prompt, profile_data, skill="Auditoria Interna")
 
-    def generate_competitive_intelligence(self, internal_data: dict, competitors_data: dict) -> str:
+    def generate_competitive_intelligence(self, internal_data: dict, competitors_data: list) -> str:
         """2. Cruzamento de Dados e Oceano Azul (Auditoria Externa)."""
         prompt = f"""
-        MAPA DE CALOR DO MERCADO:
+        DADOS DE INTELIGÊNCIA INTERNA (@{internal_data.get('username')}):
+        {json.dumps(internal_data, indent=2, ensure_ascii=False)}
         
-        NOSSOS DADOS (@{internal_data.get('username')}):
-        {json.dumps(internal_data, indent=2)}
+        DADOS DOS INIMIGOS (CONCORRENTES):
+        {json.dumps(competitors_data, indent=2, ensure_ascii=False)}
         
-        DADOS DOS CONCORRENTES:
-        {json.dumps(competitors_data, indent=2)}
+        MAPEIE O CENÁRIO COMPETITIVO COM RIGOR MILITAR:
         
-        Faça um cruzamento tático e entregue o Mapa de Guerra:
-        **1. Benchmarking de Ameaças:** O que o concorrente A ou B está fazendo melhor do que nós (ângulo, formato, comunidade)?
-        **2. Content Gaps (Pontos Cegos):** Onde os nossos concorrentes estão errando ou sendo superficiais que nós podemos atacar amanhã?
-        **3. O Oceano Azul:** Apresente 2 estratégias de conteúdo/posicionamento que NENHUM dos concorrentes está usando, mas que a nossa audiência secretamente deseja.
+        **1. Cartografia de Ameaças:** Qual é o Fosso Competitivo (Moat) que nossos concorrentes estão tentando construir com esses posts recentes? Onde eles têm vantagem tática?
+        **2. Pontos Cegos (Content Gaps):** Qual dor aguda do mercado (Jobs-to-be-Done) eles estão ignorando ou abordando de forma superficial?
+        **3. A Matriz ERRC (Oceano Azul):** Defina claramente para nossa marca:
+           - O que devemos ELIMINAR que a concorrência faz muito?
+           - O que devemos REDUZIR?
+           - O que devemos ELEVAR muito acima do padrão do mercado?
+           - O que devemos CRIAR que não existe hoje neste nicho?
         """
         return self._call_ai(prompt, internal_data, skill="Inteligência Competitiva")
 
     def analyze_trends_and_timings(self, trending_topics: list, profile_context: dict) -> str:
         """3. Trend Hijacking: Recebe 50+ tópicos, ranqueia os 3 melhores e cria o post do vencedor."""
         prompt = f"""
-        RADAR GLOBAL DE TENDÊNCIAS (Notícias, Fofocas, Economia, etc):
-        {json.dumps(trending_topics, indent=2)}
+        FLUXO DE DADOS GLOBAIS (Notícias, Fofocas, Economia, etc):
+        {json.dumps(trending_topics, indent=2, ensure_ascii=False)}
         
-        Sua tarefa é "Trend Hijacking" (Sequestro de Atenção) focado no nicho de '{profile_context.get('niche')}'.
+        SUA MISSÃO É O TREND HIJACKING APLICADO AO NICHO DE '{profile_context.get('niche')}'.
         Você tem dezenas de assuntos na mesa. Ignore o ruído e encontre o ouro.
         
-        Entregue:
-        **1. Ranking de Oportunidades (Top 3):** Filtre esta lista gigante e escolha os 3 tópicos com MAIOR potencial de retenção e viralização para a nossa audiência. Justifique brevemente por que a audiência de {profile_context.get('niche')} se importaria com eles.
-        **2. O Ângulo de Abordagem (Foco no Campeão):** Pegue o Tópico #1 do ranking. Como vamos hackear essa atenção? Será uma opinião polêmica, uma ponte com a dor do cliente ou humor refinado?
-        **3. Copy Letal:** Escreva a legenda (ou roteiro de Reels) pronta para uso do Tópico #1. Aplique gatilhos de retenção agressivos logo na primeira linha.
+        **1. Seleção Científica (Filtro STEPPS):** Dos tópicos acima, isole os 3 com maior carga de "Moeda Social" e "Emoção" (elementos do framework Jonah Berger) que podem ser conectados organicamente ao nosso nicho. Justifique brevemente a escolha.
+        **2. O Ângulo de Abordagem (Foco no Campeão):** Pegue o Tópico #1 do ranking. Qual será o Ângulo de Ruptura de Padrão (Pattern Interrupt) para sequestrar essa atenção? 
+        **3. Copy Letal:** Escreva a legenda (ou roteiro de Reels) pronta para uso do Tópico #1. O primeiro segundo deve ancorar a curiosidade na Trend, e o meio deve fazer a ponte brilhante para a nossa autoridade.
         """
         return self._call_ai(prompt, profile_context, skill="Trend Ranking & Hijacking")
 
     def strategic_intervention(self, historical_growth: list, profile_context: dict) -> str:
         """4. Propostas de Intervenção (Consultoria de Crescimento)."""
         prompt = f"""
-        HISTÓRICO DE CRESCIMENTO (Últimos dias/semanas):
-        {json.dumps(historical_growth, indent=2)}
+        SÉRIE TEMPORAL DE CRESCIMENTO (Últimos dias/semanas):
+        {json.dumps(historical_growth, indent=2, ensure_ascii=False)}
         
-        Analise a curva de crescimento da nossa conta. 
-        **1. Diagnóstico da Tração:** Estamos em crescimento exponencial, platô (estagnados) ou em queda (churn de atenção)? Justifique matematicamente.
-        **2. Proposta de Intervenção Validada:** Baseado na neurociência e em growth hacking, apresente um Plano de Ação de 3 passos para injetar tração imediata na conta (mudança de CTA, nova linha editorial, etc).
-        **3. Foco em Vendas:** Como podemos transformar essa métrica de atenção em leads reais nos próximos 7 dias?
+        APLIQUE METODOLOGIA DE GROWTH HACKING E FUNIL AARRR:
+        
+        **1. Diagnóstico da Tração:** O gráfico indica tração exponencial, platô (estagnados) ou em queda (churn de atenção)? Justifique matematicamente.
+        **2. Proposta de Intervenção Validada:** Baseado na neurociência e em growth hacking, apresente um Plano de Ação de 3 passos para injetar tração imediata na conta (ex: Loops de Crescimento focados no nicho de {profile_context.get('niche')}).
+        **3. Protocolo de Vendas (Curto Prazo):** Quais gatilhos de Cialdini (Urgência, Escassez, Prova Social ou Reciprocidade) devem ser injetados imediatamente no conteúdo de amanhã para transformar atenção represada em capital?
         """
         return self._call_ai(prompt, profile_context, skill="Intervenção Estratégica")
 
     def generate_briefing(self, trend_topic: str, competitor: str) -> dict:
         """5. Gerador de Briefing: Alimentação do Dashboard React (Sintetizar Briefing)."""
         prompt = f"""
-        Crie um briefing tático de conteúdo baseado no tópico em alta '{trend_topic}'.
-        Temos de atacar o público do nosso concorrente: {competitor}.
+        Crie um briefing tático cirúrgico baseado no tópico em alta '{trend_topic}'.
+        Alvo Competitivo a ser enfraquecido indiretamente: {competitor}.
         
-        Devolva APENAS um JSON válido (sem tags markdown ```json) com as chaves exatas:
-        "hook" (O gancho do post em 1 frase letal),
-        "strategy" (A explicação psicológica da tática em 2 linhas curtas),
-        "format" (Ex: Reels, Carrossel, Story),
-        "call_to_action" (Chamada para ação matadora focada em conversão)
+        A resposta DEVE ser APENAS um JSON válido e perfeitamente formatado. Estrutura exata:
+        {{
+            "hook": "Uma frase letal e disruptiva que crie um 'Pattern Interrupt' absoluto nos 3 primeiros segundos.",
+            "strategy": "Justificativa da estratégia em 2 linhas baseada no framework Jobs-to-be-Done.",
+            "format": "Especifique o formato ótimo (Ex: Reels Dinâmico, Carrossel de 5 Slides)",
+            "call_to_action": "Comando direto focado na fase de decisão do funil."
+        }}
+        NÃO inclua markdown ```json ou qualquer outro texto antes ou depois do JSON.
         """
         try:
             print("🧠 [Skill: Síntese de Briefing] CMO gerando tática...")
@@ -174,41 +186,40 @@ class AIEngine:
         [SÊNIOR] Gera um relatório massivo de 5 capítulos para o Diretor de Marketing.
         """
         prompt = f"""
-        Você é o Diretor Estratégico (CMO) da VRTICE. Sua missão é redigir um Dossiê de Inteligência Competitiva 
-        profundo, tático e impecável para o cliente: {data['tenant_name']} (Nicho: {data['niche']}).
+        Você é o Head de Estratégia do sistema de Inteligência ORION. Redija um "Equity Research Report" e Plano Diretor de Marketing 
+        profundo e institucional para o ativo: {data['tenant_name']} (Nicho: {data['niche']}).
 
-        Aqui estão os dados interceptados pelo sistema Orion nas últimas horas:
-        - Nossos Seguidores: {data['followers']} | Crescimento recente: {data['delta_followers']}
-        - Nosso Engajamento Médio: {data['avg_engagement']}%
-        - Nossos Melhores Formatos: {data['top_formats']}
-        - Nossos Concorrentes: {data['competitors_data']}
-        - Radar de Persona (Dores/Medos ouvidos): {data['persona_radar']}
-        - Arsenal da Concorrência (Ganchos ativos): {data['arsenal']}
-        - Pulso Global (Trends atuais): {data['global_trends']}
+        DATA LAKE INTERCEPTADO NAS ÚLTIMAS 24H:
+        - Seguidores Base: {data['followers']} | Tração Recente: {data['delta_followers']}
+        - Taxa de Retenção (Engajamento Médio): {data['avg_engagement']}%
+        - Vetores de Tração (Melhores Formatos): {data['top_formats']}
+        - Entidades Competidoras Mapeadas: {data['competitors_data']}
+        - Escuta Ativa (Dores Brutas do Mercado): {data['persona_radar']}
+        - Arsenal Bélico da Concorrência: {data['arsenal']}
+        - Dinâmica Sócio-Cultural (Trends atuais): {data['global_trends']}
 
-        REQUISITO DE FORMATAÇÃO: 
-        Este relatório DEVE ser extenso o suficiente para ocupar pelo menos 5 páginas de leitura densa e profissional. 
-        Use tom corporativo, analítico e de alto nível (focado em conversão e dominação de mercado).
-        Utilize formatação Markdown pesada (## Capítulos, ### Subtítulos, **Negritos**, - Listas).
+        PARÂMETROS DE ESTILO E RIGOR:
+        Este é um relatório "C-Level" para a diretoria. Requer pelo menos 5 páginas de profundidade absoluta. 
+        Use tom corporativo, analítico e fundamentado em ciência de consumo. Utilize formatação Markdown avançada.
 
-        ESTRUTURA OBRIGATÓRIA DOS 5 CAPÍTULOS:
+        ESTRUTURA OBRIGATÓRIA DOS 5 CAPÍTULOS DE ELITE:
         
-        ## CAPÍTULO 1: RADIOGRAFIA DO CENÁRIO ATUAL
-        Analise friamente os nossos números ({data['followers']} seguidores, {data['avg_engagement']}% engajamento). O que isso significa no mercado atual de {data['niche']}? Onde estamos sangrando tráfego?
+        ## CAPÍTULO 1: ANÁLISE DE FUNDAMENTOS E VALUATION DE ATENÇÃO
+        Com os números atuais ({data['followers']} seguidores, {data['avg_engagement']}% engajamento), determine a liquidez social do cliente no mercado de {data['niche']}. Onde o capital de atenção está vazando?
         
-        ## CAPÍTULO 2: CARTOGRAFIA DA CONCORRÊNCIA (A ARENA)
-        Disseque os concorrentes informados. Analise os ganchos que eles estão usando ({data['arsenal']}). Por que estão usando isso? Qual é a fraqueza deles que nós vamos explorar?
+        ## CAPÍTULO 2: ESPIONAGEM COMPETITIVA E MATRIZ OCEANO AZUL
+        Avalie o arsenal dos inimigos ({data['arsenal']}). Aplique a Matriz ERRC (Eliminar, Reduzir, Elevar, Criar). Defina o espaço inexplorado onde a marca poderá operar sem concorrência direta.
         
-        ## CAPÍTULO 3: DIAGNÓSTICO DO RADAR DE PERSONA
-        Com base nas dores extraídas ({data['persona_radar']}), desenhe o perfil psicológico exato de quem está com o cartão de crédito na mão hoje. O que o mercado não está entregando para eles?
+        ## CAPÍTULO 3: PSICANÁLISE DE MERCADO E JOBS-TO-BE-DONE
+        Através das dores interceptadas ({data['persona_radar']}), identifique o verdadeiro "Job" que o mercado está tentando resolver. Qual o nível de consciência de Eugene Schwartz da massa atual?
         
-        ## CAPÍTULO 4: ENGENHARIA DE CONTEÚDO E VETORES DE TRAÇÃO
-        Conecte as tendências globais ({data['global_trends']}) com os nossos melhores formatos ({data['top_formats']}). Defina a linha editorial exata para os próximos 30 dias.
+        ## CAPÍTULO 4: VETORIZAÇÃO DE CONTEÚDO E ARQUITETURA VIRAL
+        Cruze as tendências atuais ({data['global_trends']}) com os nossos melhores formatos ({data['top_formats']}). Usando o framework STEPPS (Moeda Social, Emoção), defina a linha editorial para os próximos 30 dias.
         
-        ## CAPÍTULO 5: PLANO DE INTERVENÇÃO CIRÚRGICA (DIRETRIZES DE AÇÃO)
-        Escreva 5 passos operacionais que a equipe de produção (designers, copywriters, videomakers) deve executar amanhã de manhã. Regras claras, ganchos primários e CTAs de conversão direta.
+        ## CAPÍTULO 5: PLANO DE EXECUÇÃO TÁTICA E ORDENS DIRETAS
+        Escreva 5 passos operacionais que a equipe de produção (Designers, Copywriters) deve executar amanhã. Regras claras, ganchos primários e CTAs de conversão direta baseados em Cialdini.
 
-        Gere o relatório agora, mantendo a excelência VRTICE.
+        Inicie o relatório agora, mantendo a excelência VRTICE.
         """
         try:
             print("📄 [Skill: Dossiê CMO] Sintetizando relatório massivo...")
@@ -242,7 +253,99 @@ if __name__ == "__main__":
         print("-" * 80)
         
         briefing = ai.generate_briefing("Queda na Taxa Selic", "@primorico")
+
+    def execute_sociologist_profiling(self, niche: str, raw_comments: list) -> dict:
+        """
+        O Sociólogo (FASE 3): Engole milhares de comentários (Data Lake) e gera o Dossiê da Persona.
+        Output direto para a tabela PersonaDossier.
+        """
+        prompt = f"""
+        Você é um Analista Comportamental Sênior e Estrategista de Wall Street operando no nicho de '{niche}'.
+        Abaixo está um Data Lake contendo centenas de comentários reais extraídos do TikTok e Instagram de concorrentes:
         
-        print("\n💡 BRIEFING GERADO (JSON):")
-        print(json.dumps(briefing, indent=2, ensure_ascii=False))
-        print("-" * 80)
+        [INÍCIO DO DATA LAKE]
+        {json.dumps(raw_comments, ensure_ascii=False)}
+        [FIM DO DATA LAKE]
+        
+        Sua missão é ler essa massa caótica de dados, ignorar ruídos (ex: "lindo", "amei") e encontrar as assimetrias psicológicas.
+        Aplique o framework Jobs-to-be-Done (JTBD) e Níveis de Consciência de Eugene Schwartz.
+        
+        DEVOLVA APENAS UM JSON VÁLIDO COM ESTA ESTRUTURA EXATA:
+        {{
+            "macro_sentiment": "Uma frase resumindo o sentimento geral da massa (Ex: Frustrados com falsas promessas).",
+            "core_desire": "O verdadeiro Job-to-be-Done oculto.",
+            "hidden_objection": "A Fricção ou objeção principal que os impede de comprar.",
+            "awareness_level": "O Nível de Consciência predominante da massa (Eugene Schwartz).",
+            "golden_quotes": [
+                "Citação real 1 exata extraída do texto que prova a tese",
+                "Citação real 2 exata extraída do texto que prova a tese",
+                "Citação real 3 exata extraída do texto que prova a tese"
+            ]
+        }}
+        NÃO use formatação markdown (```json). Apenas o objeto JSON puro.
+        """
+        try:
+            print("🧠 [OSINT: Sociólogo] Minerando Data Lake de comentários...")
+            
+            sociologist_model = genai.GenerativeModel(
+                model_name=self.model_id,
+                system_instruction=self._get_cmo_persona({'username': 'ORION SYSTEM', 'niche': niche})
+            )
+            
+            response = sociologist_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.3) # Baixa temperatura para extração exata
+            )
+            
+            clean_response = response.text.strip().lstrip('```json').rstrip('```').strip()
+            return json.loads(clean_response)
+        except Exception as e:
+            print(f"❌ Erro no processamento do Sociólogo: {e}")
+            return None
+
+    def execute_spy_ooda_loop(self, competitor_name: str, campaign_text: str, format_type: str) -> dict:
+        """
+        O Espião (FASE 3): Faz a engenharia reversa de UMA campanha/post específico do concorrente.
+        Output direto para a tabela CompetitorWarRoom.
+        """
+        prompt = f"""
+        Você é um Operativo de Inteligência Competitiva (Corporate Espionage).
+        O concorrente @{competitor_name} acabou de lançar o seguinte conteúdo/anúncio no formato '{format_type}':
+        
+        [CÓPIA DA CAMPANHA INIMIGA]
+        "{campaign_text}"
+        [FIM DA CÓPIA]
+        
+        Faça a engenharia reversa (Tear-down) desta estratégia e prepare o nosso contra-ataque usando a Matriz Oceano Azul e Gatilhos de Cialdini.
+        
+        DEVOLVA APENAS UM JSON VÁLIDO COM ESTA ESTRUTURA EXATA:
+        {{
+            "detected_hook": "Qual é o gancho exato e a premissa que eles estão usando para segurar a atenção?",
+            "cialdini_trigger": "Qual Gatilho Mental primário está em uso (ex: Escassez, Prova Social, Autoridade)?",
+            "market_gap": "O que eles deixaram de fora? Qual é a lacuna ou ponto cego dessa abordagem?",
+            "counter_strategy": "A instrução tática letal de como nós devemos criar um conteúdo para esmagar essa narrativa e roubar a atenção."
+        }}
+        NÃO use formatação markdown (```json). Apenas o objeto JSON puro.
+        """
+        try:
+            print(f"🥷 [OSINT: Espião] Dissecando campanha de @{competitor_name}...")
+            
+            spy_model = genai.GenerativeModel(
+                model_name=self.model_id,
+                system_instruction=self._get_cmo_persona({'username': 'ORION SYSTEM', 'niche': 'Inteligência Competitiva'})
+            )
+            
+            response = spy_model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=0.4)
+            )
+            
+            clean_response = response.text.strip().lstrip('```json').rstrip('```').strip()
+            return json.loads(clean_response)
+        except Exception as e:
+            print(f"❌ Erro na engenharia reversa do Espião: {e}")
+            return None
+        
+    print("\n💡 BRIEFING GERADO (JSON):")
+    print(json.dumps(briefing, indent=2, ensure_ascii=False))
+    print("-" * 80)
