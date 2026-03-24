@@ -1,38 +1,42 @@
 @import "tailwindcss";
 
-/* === DICIONÁRIO DE ELITE VÉRTICE (Tailwind v4) === */
-@import "tailwindcss";
+/* ==========================================================================
+   DICIONÁRIO DE ELITE VÉRTICE & ORION SYSTEM (Tailwind v4)
+   ========================================================================== */
 
-/* 1. VARIÁVEIS DO MOTOR DE TEMAS */
+/* 1. VARIÁVEIS DO MOTOR DE TEMAS (C-LEVEL THEMES) */
 :root {
-  /* TEMA DARK (Padrão) */
-  --theme-bg: #111111;
-  --theme-text: #F4F4F0;
-  --theme-border: rgba(244, 244, 240, 0.1);
-  --theme-panel: rgba(255, 255, 255, 0.03);
+  /* TEMA DARK (Padrão: Dark Matter / OLED) */
+  --theme-bg: #050505; 
+  --theme-text: #F8F9FA;
+  --theme-border: rgba(255, 255, 255, 0.05);
+  --theme-panel: rgba(15, 23, 42, 0.4);
+  --theme-glow: rgba(212, 175, 55, 0.15);
 }
 
 [data-theme="light"] {
-  /* TEMA LIGHT */
-  --theme-bg: #F4F4F0;
-  --theme-text: #111111;
-  --theme-border: rgba(17, 17, 17, 0.1);
-  --theme-panel: rgba(0, 0, 0, 0.03);
+  /* TEMA LIGHT (Executive White) */
+  --theme-bg: #FAFAFA;
+  --theme-text: #0F172A;
+  --theme-border: rgba(15, 23, 42, 0.1);
+  --theme-panel: rgba(255, 255, 255, 0.7);
+  --theme-glow: rgba(212, 175, 55, 0.1);
 }
 
 [data-theme="navy"] {
-  /* TEMA NAVY BLUE */
-  --theme-bg: #0B1021;
-  --theme-text: #F4F4F0;
-  --theme-border: rgba(200, 169, 112, 0.2);
-  --theme-panel: rgba(255, 255, 255, 0.03);
+  /* TEMA NAVY BLUE (Corporate Trust) */
+  --theme-bg: #0B1120;
+  --theme-text: #F1F5F9;
+  --theme-border: rgba(212, 175, 55, 0.15);
+  --theme-panel: rgba(15, 23, 42, 0.6);
+  --theme-glow: rgba(59, 130, 246, 0.15);
 }
 
-/* 2. INJEÇÃO NO TAILWIND V4 */
+/* 2. INJEÇÃO NO TAILWIND V4 (Variáveis Semânticas) */
 @theme {
-  /* Cores Fixas (O Dourado nunca muda) */
-  --color-v-gold: #C8A970;
-  --color-v-blue-navy: #0B1021;
+  /* Cores Fixas Orion */
+  --color-v-gold: #d4af37; /* Ouro Refletivo (Wall Street Standard) */
+  --color-v-blue-navy: #0B1120;
   --color-v-brown-earth: #8B7355;
   
   /* Cores Mutáveis (Obedecem ao Tema) */
@@ -40,61 +44,78 @@
   --color-v-white-off: var(--theme-text);
 }
 
-/* 3. AJUSTE DO FUNDO GLOBAL */
+/* 3. COMPORTAMENTO GLOBAL E TIPOGRAFIA DE SOFTWARE */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased; /* Torna as fontes mais nítidas (Mac/iOS) */
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   background-color: var(--theme-bg);
   color: var(--theme-text);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.5s cubic-bezier(0.16, 1, 0.3, 1), color 0.5s ease;
+  overflow-x: hidden; /* Evita quebra de layout por animações off-screen */
 }
 
-/* 4. ATUALIZAÇÃO DO GLASS PANEL */
-.glass-panel {
-  background: var(--theme-panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--theme-border);
-}
-
-/* Animações e Scrollbar mantêm-se iguais... */
-@keyframes fade-in-up {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
-.animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-
-/* === RESET E COMPORTAMENTOS === */
-html {
-  scroll-behavior: smooth;
-}
-
-/* === UTILITÁRIOS CUSTOMIZADOS VÉRTICE === */
+/* ==========================================================================
+   MÓDULOS DE UI (GLASSMORPHISM & GLOW)
+   ========================================================================== */
 @layer utilities {
   .text-gold-gradient {
-    background: linear-gradient(135deg, #c8a970 0%, #e8d0a9 50%, #c8a970 100%);
+    background: linear-gradient(135deg, #d4af37 0%, #FFF5D1 50%, #d4af37 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   
   .glass-panel {
-    background: rgba(20, 29, 51, 0.4);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(200, 169, 112, 0.15);
+    background: var(--theme-panel);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--theme-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  /* Aplica o Glow Sutil do tema ao redor do painel */
+  .glass-panel:hover {
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 20px var(--theme-glow);
+    border-color: rgba(212, 175, 55, 0.3);
   }
 }
 
-/* =========================================
-   ANIMAÇÕES DE ELITE VRTICE (SVG & UI)
-   ========================================= */
+/* ==========================================================================
+   CINEMATOGRAFIA DE SOFTWARE (Animações de Entrada)
+   ========================================================================== */
 
-/* O Segredo do Efeito de Desenho a Laser */
+/* Fade in suave para componentes (Substitui trancos duros) */
+@keyframes fadeInUpSubtle {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { 
+  animation: fadeInUpSubtle 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
+}
+
+/* Pulso elegante para indicadores de status e navegação */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+.animate-pulse-slow { 
+  animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; 
+}
+
+/* ==========================================================================
+   ANIMAÇÕES DE ELITE VRTICE (SVG Laser Draw)
+   ========================================================================== */
 .vrtice-vector {
-  fill: transparent; /* Começa transparente */
-  stroke: var(--color-v-gold); /* A linha é dourada */
+  fill: transparent;
+  stroke: var(--color-v-gold);
   stroke-width: 2;
-  stroke-dasharray: 1000; /* Comprimento da linha */
-  stroke-dashoffset: 1000; /* Esconde a linha */
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
   transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -104,7 +125,6 @@ html {
   fill: var(--color-v-white-off);
 }
 
-/* Quando a animação ativa */
 .vrtice-anim-active .draw-anim {
   animation: drawStroke 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -113,15 +133,14 @@ html {
   animation: fadeInUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Temporização Dramática */
 .delay-1 { animation-delay: 0.2s; }
 .delay-2 { animation-delay: 0.6s; }
-.delay-3 { animation-delay: 1.8s; } /* O texto só aparece depois do símbolo desenhar */
+.delay-3 { animation-delay: 1.8s; }
 
 @keyframes drawStroke {
   to {
-    stroke-dashoffset: 0; /* A linha se revela */
-    fill: var(--color-v-gold); /* Preenche com ouro no final */
+    stroke-dashoffset: 0;
+    fill: var(--color-v-gold);
   }
 }
 
@@ -135,11 +154,10 @@ html {
 /* Preloader Container */
 #preloader {
   position: fixed; inset: 0; z-index: 9999;
-  background: var(--color-v-black);
+  background: var(--theme-bg);
   display: flex; justify-content: center; align-items: center;
 }
 
-/* Animação de Saída do Preloader */
 .preloader-exit {
   animation: fadeOutLoader 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   pointer-events: none;
@@ -149,23 +167,14 @@ html {
   to { opacity: 0; visibility: hidden; }
 }
 
-@keyframes fadeInUpSubtle {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUpSubtle 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
 /* ==========================================================================
-   ORION CUSTOM SCROLLBAR (WebKit & Firefox)
+   ORION CUSTOM SCROLLBAR (Glass & Gold Edge)
    ========================================================================== */
+/* Oculta barras laterais pesadas, focando no conteúdo */
 
-/* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(212, 175, 55, 0.3) rgba(0, 0, 0, 0.2);
+  scrollbar-color: rgba(212, 175, 55, 0.3) transparent;
 }
 
 /* Chrome, Edge, Safari */
@@ -175,22 +184,34 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
+  background: transparent; /* Pista invisível reduz carga visual */
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.3);
+  background: rgba(255, 255, 255, 0.1); /* Discreto por padrão */
   border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  transition: background 0.3s ease;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.8);
-  cursor: pointer;
+/* Ao passar o mouse na div com scroll (Não apenas na barra) */
+*:hover::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.3); /* Acende em ouro */
 }
 
-/* Oculta setas da barra de rolagem */
+/* Ao clicar na barra */
+::-webkit-scrollbar-thumb:active {
+  background: rgba(212, 175, 55, 0.6);
+}
+
 ::-webkit-scrollbar-button {
   display: none;
+}
+
+/* Utilitário para forçar ocultação de scrollbar (Para modais e sidebars) */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }

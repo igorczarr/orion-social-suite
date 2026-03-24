@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { 
   Crosshair, Radar, Fingerprint, Zap, ExternalLink, 
   CheckCircle2, Copy, AlertTriangle, TrendingUp, Users,
-  Activity, Play, Pause, ChevronRight, UserPlus, BrainCircuit 
+  Activity, Play, Pause, ChevronRight, UserPlus, BrainCircuit,
+  Lock, KeyRound, Server, TerminalSquare
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function VortexPage() {
   const { tenantInfo } = useTenant();
@@ -18,10 +20,16 @@ export default function VortexPage() {
   const [selectedTarget, setSelectedTarget] = useState<any>(null);
   const [copied, setCopied] = useState(false);
 
+  // === FASE 5: ESTADOS DO COFRE CRIPTOGRÁFICO ===
+  const [isArmed, setIsArmed] = useState(false); // True se o backend tem o cookie do cliente
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [sessionCookieInput, setSessionCookieInput] = useState("");
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+
   // CONEXÃO COM A NUVEM
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://orion-9pls.onrender.com";
 
-  // === BUSCAR ALVOS NA API ===
+  // === BUSCAR ALVOS E STATUS DO COFRE NA API ===
   const loadVortexQueue = async () => {
     if (!tenantInfo?.id) return;
     setIsLoading(true);
@@ -33,6 +41,10 @@ export default function VortexPage() {
       
       if (response.ok) {
         const payload = await response.json();
+        
+        // Recebe o status do Módulo Sniper (Cofre)
+        setIsArmed(payload.is_armed || false);
+        
         const fila = payload.targets || [];
         setTargets(fila);
         
@@ -58,7 +70,40 @@ export default function VortexPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // === REGISTRA AÇÃO NO BACKEND (Engajou ou Ignorou) ===
+  // === FASE 5: SALVAR COOKIE DE SESSÃO NO BACKEND ===
+  const handleSaveCookie = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantInfo?.id || !sessionCookieInput.trim()) return;
+    
+    setIsAuthenticating(true);
+    try {
+      const token = localStorage.getItem("orion_token");
+      const response = await fetch(`${API_URL}/api/vortex/${tenantInfo.id}/auth`, {
+        method: "POST",
+        headers: { 
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ session_cookie: sessionCookieInput })
+      });
+      
+      if (response.ok) {
+        setIsArmed(true);
+        setIsAuthModalOpen(false);
+        setSessionCookieInput("");
+        alert("Módulo Sniper Armado com Sucesso. Automação furtiva pronta.");
+      } else {
+        alert("Falha ao criptografar sessão no cofre.");
+      }
+    } catch (error) {
+      console.error("Falha na autenticação do cofre:", error);
+      alert("Erro de comunicação com o servidor seguro.");
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  // === REGISTRA AÇÃO NO BACKEND E DISPARA AUTOMAÇÃO (Engaged) ===
   const handleActionComplete = async (id: number, action: 'engaged' | 'ignored') => {
     // 1. Atualiza visualmente instantâneo (Optimistic UI)
     const updatedTargets = targets.map(t => t.id === id ? { ...t, status: action } : t);
@@ -68,7 +113,12 @@ export default function VortexPage() {
     const nextTarget = updatedTargets.find(t => t.id !== id && t.status === 'pending');
     setSelectedTarget(nextTarget || null);
 
-    // 2. Envia para o Backend para persistir e ganhar XP
+    // Aviso se o usuário tentar engajar sem estar armado
+    if (action === 'engaged' && !isArmed) {
+      alert("Alerta: Ação registrada, mas o Módulo Sniper está desarmado. A curtida e o comentário não serão feitos pela automação.");
+    }
+
+    // 2. Envia para o Backend para persistir, ganhar XP e disparar o Worker Ghost
     try {
       const token = localStorage.getItem("orion_token");
       await fetch(`${API_URL}/api/vortex/action`, {
@@ -84,7 +134,7 @@ export default function VortexPage() {
     }
   };
 
-  // Abre a janela focada do Instagram
+  // Abre a janela focada do Instagram (Fallback Manual)
   const openSniperWindow = (username: string) => {
     window.open(
       `https://www.instagram.com/${username}/`, 
@@ -105,7 +155,7 @@ export default function VortexPage() {
   return (
     <div className="space-y-8 animate-fade-in-up pb-20">
       
-      {/* 1. CABEÇALHO TÁTICO */}
+      {/* 1. CABEÇALHO TÁTICO E STATUS DE ARMAMENTO */}
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-white/10 pb-6">
         <div>
           <div className="flex items-center gap-3 mb-4">
@@ -122,21 +172,39 @@ export default function VortexPage() {
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex bg-black border border-white/20 rounded-md p-1">
-            <button className="px-4 py-2 text-[0.65rem] font-montserrat font-bold text-black bg-cyan-500 rounded-md uppercase tracking-widest transition-all">
-              Roubar Concorrentes
-            </button>
-            <button className="px-4 py-2 text-[0.65rem] font-montserrat text-gray-400 hover:text-white transition-colors uppercase tracking-widest">
-              Base Própria
+        <div className="flex flex-col items-end gap-4">
+          {/* FASE 5: Badge de Status de Automação */}
+          <div 
+            onClick={() => !isArmed && setIsAuthModalOpen(true)}
+            className={`flex items-center gap-3 border p-2 rounded-xl backdrop-blur-sm relative transition-all ${isArmed ? 'border-green-500/30 bg-green-500/10' : 'border-red-500/30 bg-red-500/10 cursor-pointer hover:border-red-500/60'}`}
+          >
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-abhaya text-xl border ${isArmed ? 'bg-green-500/20 text-green-400 border-green-500/40 shadow-[inset_0_0_10px_rgba(34,197,94,0.2)]' : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[inset_0_0_10px_rgba(239,68,68,0.2)] animate-pulse'}`}>
+              {isArmed ? <Lock size={20} /> : <AlertTriangle size={20} />}
+            </div>
+            <div className="pr-2">
+              <p className="font-montserrat text-[0.6rem] text-gray-400 uppercase tracking-widest">Módulo Sniper (RPA)</p>
+              <p className={`font-montserrat text-sm font-bold ${isArmed ? 'text-green-400' : 'text-red-400'}`}>
+                {isArmed ? "ARMADO E SEGURO" : "DESARMADO (CLIQUE AQUI)"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex bg-black border border-white/20 rounded-md p-1">
+              <button className="px-4 py-2 text-[0.65rem] font-montserrat font-bold text-black bg-cyan-500 rounded-md uppercase tracking-widest transition-all">
+                Roubar Concorrentes
+              </button>
+              <button className="px-4 py-2 text-[0.65rem] font-montserrat text-gray-400 hover:text-white transition-colors uppercase tracking-widest">
+                Base Própria
+              </button>
+            </div>
+            <button 
+              onClick={() => setIsScanning(!isScanning)}
+              className={`p-3 border rounded-md transition-colors flex items-center justify-center ${isScanning ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10'}`}
+            >
+              {isScanning ? <Pause size={16} /> : <Play size={16} />}
             </button>
           </div>
-          <button 
-            onClick={() => setIsScanning(!isScanning)}
-            className={`p-3 border rounded-md transition-colors flex items-center justify-center ${isScanning ? 'border-red-500/30 text-red-400 hover:bg-red-500/10' : 'border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10'}`}
-          >
-            {isScanning ? <Pause size={16} /> : <Play size={16} />}
-          </button>
         </div>
       </header>
 
@@ -212,8 +280,8 @@ export default function VortexPage() {
             <h3 className="font-montserrat text-xs font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-2">
               <Activity size={14} /> Terminal de Ação Humana
             </h3>
-            <span className="flex items-center gap-1 text-[0.6rem] text-green-400 uppercase tracking-widest border border-green-500/30 bg-green-500/10 px-2 py-1 rounded-md">
-              <CheckCircle2 size={12} /> Seguro (Anti-Ban)
+            <span className={`flex items-center gap-1 text-[0.6rem] uppercase tracking-widest border px-2 py-1 rounded-md ${isArmed ? 'text-green-400 border-green-500/30 bg-green-500/10' : 'text-gray-400 border-gray-500/30 bg-gray-500/10'}`}>
+              <Server size={12} /> {isArmed ? "RPA Conectado" : "Apenas Manual"}
             </span>
           </div>
 
@@ -270,17 +338,20 @@ export default function VortexPage() {
                   
                   <button 
                     onClick={() => openSniperWindow(selectedTarget.username)}
-                    className="py-4 bg-cyan-600 text-white font-montserrat text-[0.65rem] font-bold uppercase tracking-widest hover:bg-cyan-500 transition-colors shadow-[0_0_15px_rgba(6,182,212,0.3)] rounded-lg flex items-center justify-center gap-2"
+                    className="py-4 bg-cyan-900/40 border border-cyan-500/50 text-cyan-400 font-montserrat text-[0.65rem] font-bold uppercase tracking-widest hover:bg-cyan-900/80 transition-colors rounded-lg flex items-center justify-center gap-2"
                   >
-                    <ExternalLink size={14} /> Abrir Instagram
+                    <ExternalLink size={14} /> Fazer Manualmente
                   </button>
 
-                  <button 
+                  {/* FASE 5: Botão Engajar agora engatilha automação se armado */}
+                  <motion.button 
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => handleActionComplete(selectedTarget.id, 'engaged')}
-                    className="py-4 bg-[#d4af37] text-black font-montserrat text-[0.65rem] font-bold uppercase tracking-widest hover:bg-[#c9a128] transition-colors rounded-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.2)]"
+                    className={`py-4 text-black font-montserrat text-[0.65rem] font-bold uppercase tracking-widest transition-colors rounded-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(212,175,55,0.2)] ${isArmed ? 'bg-green-500 hover:bg-green-400' : 'bg-[#d4af37] hover:bg-[#c9a128]'}`}
                   >
-                    <CheckCircle2 size={14} /> Confirmar Ação
-                  </button>
+                    {isArmed ? <Zap size={14} /> : <CheckCircle2 size={14} />} 
+                    {isArmed ? "Disparar Sniper (Auto)" : "Confirmar Ação (Manual)"}
+                  </motion.button>
                 </div>
               </>
             ) : (
@@ -295,13 +366,70 @@ export default function VortexPage() {
         </div>
 
       </section>
+
+      {/* =====================================================================
+          MODAL DO COFRE CRIPTOGRÁFICO (VORTEX AUTH)
+      ===================================================================== */}
+      <AnimatePresence>
+        {isAuthModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 bg-black/90 backdrop-blur-md">
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="glass-panel w-full max-w-lg bg-black border border-cyan-500/50 rounded-xl relative shadow-[0_0_80px_rgba(6,182,212,0.15)] flex flex-col overflow-hidden">
+              
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-transparent"></div>
+              
+              <button onClick={() => setIsAuthModalOpen(false)} className="absolute top-5 right-5 text-gray-400 hover:text-white transition-all"><X size={20} /></button>
+              
+              <div className="p-8 pb-4 shrink-0 border-b border-white/5">
+                <h2 className="font-abhaya text-3xl text-v-white-off mb-2 flex items-center gap-3">
+                  <KeyRound className="text-cyan-400" /> Cofre Criptográfico
+                </h2>
+                <p className="font-montserrat text-xs text-gray-500 uppercase tracking-widest leading-relaxed">
+                  Autorização de nível militar. O Orion precisa do seu Cookie de Sessão para operar de forma invisível. Suas senhas nunca são armazenadas.
+                </p>
+              </div>
+              
+              <div className="p-8">
+                <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-lg p-4 mb-6">
+                  <h4 className="font-montserrat text-[0.65rem] font-bold text-cyan-400 uppercase tracking-widest mb-3 flex items-center gap-2"><TerminalSquare size={12}/> Instruções de Captura</h4>
+                  <ol className="list-decimal list-inside font-montserrat text-xs text-gray-300 space-y-2 leading-relaxed">
+                    <li>Acesse <strong className="text-white">instagram.com</strong> e faça login na conta da marca.</li>
+                    <li>Pressione <strong className="text-white">F12</strong> (Inspecionar Elemento).</li>
+                    <li>Vá na aba <strong className="text-white">Application</strong> {'>'} Storage {'>'} Cookies.</li>
+                    <li>Encontre a linha com o Nome <strong className="text-cyan-400">sessionid</strong>.</li>
+                    <li>Copie o <strong>Valor</strong> enorme e cole no cofre abaixo.</li>
+                  </ol>
+                </div>
+
+                <form onSubmit={handleSaveCookie} className="space-y-6 font-montserrat">
+                  <div>
+                    <label className="block text-[0.65rem] font-bold uppercase tracking-widest text-v-white-off mb-2">Cookie (sessionid)</label>
+                    <input 
+                      required 
+                      type="password" 
+                      value={sessionCookieInput} 
+                      onChange={e => setSessionCookieInput(e.target.value)} 
+                      className="w-full bg-black border border-white/20 rounded-lg px-4 py-3 text-sm text-cyan-400 font-mono focus:border-cyan-400 outline-none transition-colors shadow-[inset_0_0_15px_rgba(255,255,255,0.02)]" 
+                      placeholder="Ex: 58219491024%3AVrtxcZ..." 
+                    />
+                  </div>
+                  
+                  <button type="submit" disabled={isAuthenticating} className="w-full py-4 bg-cyan-600 text-white text-xs font-bold uppercase tracking-[0.15em] hover:bg-cyan-500 transition-colors shadow-[0_0_20px_rgba(6,182,212,0.3)] disabled:opacity-50 rounded-lg flex items-center justify-center gap-2">
+                    {isAuthenticating ? <><Activity size={16} className="animate-spin"/> Criptografando...</> : <><Lock size={16}/> Trancar Cofre & Armar Sniper</>}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
 
 function MetricBox({ title, value, subtitle, icon, color }: { title: string, value: string, subtitle: string, icon: React.ReactNode, color: string }) {
   return (
-    <div className="glass-panel p-5 border border-white/5 rounded-xl hover:border-cyan-500/30 transition-colors flex flex-col justify-between h-32 bg-black/20">
+    <div className="glass-panel p-5 border border-white/5 rounded-xl hover:border-cyan-500/30 transition-colors flex flex-col justify-between h-32 bg-black/20 shadow-lg">
       <div className="flex justify-between items-start">
         <p className="font-montserrat text-[0.6rem] uppercase tracking-widest text-gray-500">{title}</p>
         <div className={`${color} opacity-80`}>{icon}</div>
