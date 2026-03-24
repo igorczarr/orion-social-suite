@@ -5,7 +5,7 @@ import {
   Crosshair, Radar, Fingerprint, Zap, ExternalLink, 
   CheckCircle2, Copy, AlertTriangle, TrendingUp, Users,
   Activity, Play, Pause, ChevronRight, UserPlus, BrainCircuit,
-  Lock, KeyRound, Server, TerminalSquare
+  Lock, KeyRound, Server, TerminalSquare, X
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { motion, AnimatePresence } from "framer-motion";
