@@ -121,9 +121,8 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # Passa a lista VIP exata
-    allow_origin_regex=r"https://.*\.vercel\.app", # Fallback para subdomínios Vercel
-    allow_credentials=True,
+    allow_origins=["*"], 
+    allow_credentials=False, 
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -181,8 +180,8 @@ class TenantCreate(BaseModel):
 class TenantResponse(BaseModel):
     id: int
     name: str
-    social_handle: str
-    niche: str
+    social_handle: Optional[str] = None
+    niche: Optional[str] = None
 
     class Config:
         from_attributes = True # Atualizado de orm_mode para Pydantic V2
