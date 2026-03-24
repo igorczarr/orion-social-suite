@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { 
   BrainCircuit, TrendingDown, TrendingUp, CalendarClock, 
   Calculator, Zap, AlertOctagon, Activity, RefreshCw, 
-  Play, DollarSign, Target, ArrowRight, Server
+  Play, DollarSign, Target, ArrowRight, Server, CheckCircle2
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { motion, AnimatePresence } from "framer-motion";
