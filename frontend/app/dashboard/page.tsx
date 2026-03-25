@@ -6,7 +6,7 @@ import {
   ArrowUpDown, Filter, Search, Eye, Heart, Bookmark, Swords, 
   Trophy, BrainCircuit, Radar, MessageCircle, PenTool, X, Plus, 
   Settings, Edit3, ShieldAlert, RefreshCw, Terminal, Layout, 
-  Download, FileText, Command
+  Download, FileText, Command, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { OrionAPI } from "@/lib/api"; 
 import { useTenant } from "@/contexts/TenantContext";
@@ -43,6 +43,7 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'cockpit' | 'activation' | 'branding'>('cockpit');
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [terminalInput, setTerminalInput] = useState("");
+  const [isActionDockOpen, setIsActionDockOpen] = useState(false);
 
   const [isNewClientModalOpen, setIsNewClientModalOpen] = useState(false);
   const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
@@ -133,24 +134,59 @@ export default function DashboardPage() {
     };
   }, [tenantInfo?.id]);
 
-  const handleStartEngine = async () => {
+  // ========================================================================
+  // 🚀 MÓDULO DE IGNIÇÃO DO MOTOR (MANUAL E AUTOMÁTICO)
+  // ========================================================================
+  const handleStartEngine = async (isAuto = false) => {
     if (!tenantInfo || tenantInfo.id <= 0) {
-      alert("Selecione um cliente real para sincronizar.");
+      if (!isAuto) alert("Selecione um cliente real para sincronizar.");
       return;
     }
-    setIsSyncing(true);
+    
+    if (!isAuto) setIsSyncing(true);
+    
     try {
-      await OrionAPI.forceSync(tenantInfo.id);
-      alert("Motor Orion em campo! A cascata tática foi iniciada. Atualizaremos os dados em 2 minutos.");
-      setTimeout(() => { window.location.reload(); }, 120000);
+      const token = localStorage.getItem("orion_token");
+      // Fazemos o fetch direto para garantir que o sinal chegou ao Render
+      const res = await fetch(`${API_URL}/api/workers/force-sync/${tenantInfo.id}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error("O servidor Render recusou o disparo.");
+      
+      if (!isAuto) {
+        alert("⚡ CASCATA OSINT ACIONADA! Os robôs estão varrendo a web agora mesmo. O painel recarregará em 60s para mostrar os primeiros resultados.");
+        // Reduzido para 60s para dar o primeiro feedback visual rápido
+        setTimeout(() => { window.location.reload(); }, 60000);
+      } else {
+        console.log(`[ORION AUTO-BOOT] Motores de raspagem acionados silenciosamente para: ${tenantInfo.name}`);
+      }
+      
     } catch (error) {
-      console.error("Falha no disparo manual:", error);
-      alert("Erro ao acionar o motor. Verifique a conexão com o Render.");
+      console.error("Falha no disparo do motor:", error);
+      if (!isAuto) alert("⚠️ Erro de comunicação. Verifique se o backend no Render está online.");
     } finally {
-      setIsSyncing(false);
+      if (!isAuto) setIsSyncing(false);
     }
   };
 
+  // 🛡️ O GATILHO DE LOGIN (Auto-Atualização)
+  // Roda uma vez por sessão diária para não estourar os créditos do Apify atoa.
+  useEffect(() => {
+    if (!tenantInfo?.id || tenantInfo.id <= 0) return;
+    
+    // Cria uma chave única por cliente por dia
+    const today = new Date().toISOString().split('T')[0];
+    const syncKey = `orion_autosync_${tenantInfo.id}_${today}`;
+    
+    // Se ainda não sincronizou hoje nesta aba do navegador, ele dispara a automação
+    if (!sessionStorage.getItem(syncKey)) {
+      handleStartEngine(true); // O 'true' faz ele rodar de forma invisível
+      sessionStorage.setItem(syncKey, "true");
+    }
+  }, [tenantInfo?.id]);
+  // ========================================================================
   const handleIAAdjustment = () => {
     alert("Iniciando recalibragem de rota estratégica... O cérebro Gemini aplicará as mudanças no próximo ciclo.");
   };
@@ -669,40 +705,65 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
 
-      {/* === BARRA DE FERRAMENTAS FLUTUANTE (ACTION DOCK) === */}
-      <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-v-gold/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]">
-        <button 
-          onClick={handleStartEngine}
-          disabled={isSyncing}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isSyncing ? 'bg-red-500/20 text-red-500' : 'bg-v-gold/10 text-v-gold hover:bg-v-gold hover:text-black shadow-[inset_0_0_10px_rgba(212,175,55,0.2)]'}`}
-          title="Forçar Sincronização do Motor"
-        >
-          <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
-        </button>
+      {/* === BARRA DE FERRAMENTAS FLUTUANTE (ACTION DOCK RETRÁTIL) === */}
+      <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3">
+        
+        {/* Container que escorrega para dentro/fora */}
+        <AnimatePresence>
+          {isActionDockOpen && (
+            <motion.div 
+              initial={{ opacity: 0, x: 50, scale: 0.8 }} 
+              animate={{ opacity: 1, x: 0, scale: 1 }} 
+              exit={{ opacity: 0, x: 50, scale: 0.8 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="flex items-center gap-2 p-2 bg-black/80 backdrop-blur-lg border border-[#d4af37]/30 rounded-full shadow-[0_0_30px_rgba(212,175,55,0.15)]"
+            >
+              {/* 🛡️ CORREÇÃO DO TYPESCRIPT: Arrow Function no onClick */}
+              <button 
+                onClick={() => handleStartEngine(false)}
+                disabled={isSyncing}
+                className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all ${isSyncing ? 'bg-red-500/20 text-red-500' : 'bg-[#d4af37]/10 text-[#d4af37] hover:bg-[#d4af37] hover:text-black shadow-[inset_0_0_10px_rgba(212,175,55,0.2)]'}`}
+                title="Forçar Sincronização do Motor"
+              >
+                <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+              </button>
 
-        <button 
-          onClick={() => setIsTerminalOpen(!isTerminalOpen)}
-          className="w-12 h-12 rounded-full bg-v-white-off/5 text-v-white-off hover:bg-[#d4af37]/20 hover:text-[#d4af37] border border-transparent hover:border-[#d4af37]/50 flex items-center justify-center transition-all"
-          title="Abrir Terminal de Comando (Cmd+K)"
-        >
-          <Command size={18} />
-        </button>
+              <button 
+                onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+                className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/5 text-white hover:bg-[#d4af37]/20 hover:text-[#d4af37] border border-transparent hover:border-[#d4af37]/50 flex items-center justify-center transition-all"
+                title="Abrir Terminal de Comando (Cmd+K)"
+              >
+                <Command size={18} />
+              </button>
 
-        <button 
-          onClick={handleGenerateReport}
-          disabled={isGeneratingReport}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all group relative ${
-            isGeneratingReport ? 'bg-v-gold/50 text-black animate-pulse' : 'bg-[#d4af37] text-black hover:bg-white hover:text-black border border-[#d4af37]'
-          }`}
-          title="Download Dossiê CMO"
+              <button 
+                onClick={handleGenerateReport}
+                disabled={isGeneratingReport}
+                className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center transition-all group relative ${
+                  isGeneratingReport ? 'bg-[#d4af37]/50 text-black animate-pulse' : 'bg-[#d4af37] text-black hover:bg-white hover:text-black border border-[#d4af37]'
+                }`}
+                title="Download Dossiê CMO"
+              >
+                {isGeneratingReport ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
+                <span className="absolute bottom-full right-0 mb-4 px-3 py-1 bg-[#d4af37] text-black text-[0.55rem] font-bold uppercase tracking-widest rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-[0_0_15px_rgba(212,175,55,0.4)] pointer-events-none">
+                  Baixar Dossiê Estratégico (PDF)
+                </span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Botão Fixo de Acionamento Lateral */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsActionDockOpen(!isActionDockOpen)}
+          className="w-12 h-12 rounded-full bg-black/90 border border-[#d4af37]/50 text-[#d4af37] flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.2)] hover:bg-[#d4af37] hover:text-black transition-colors z-[101]"
+          title={isActionDockOpen ? "Recolher Painel" : "Painel de Comando Rápido"}
         >
-          {isGeneratingReport ? <RefreshCw size={20} className="animate-spin" /> : <Download size={20} />}
-          <span className="absolute bottom-full right-0 mb-4 px-3 py-1 bg-[#d4af37] text-black text-[0.55rem] font-bold uppercase tracking-widest rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-[0_0_15px_rgba(212,175,55,0.4)] pointer-events-none">
-            Baixar Dossiê Estratégico (PDF)
-          </span>
-        </button>
+          {isActionDockOpen ? <ChevronRight size={22} /> : <ChevronLeft size={22} />}
+        </motion.button>
       </div>
-
+      
       {/* === MODAL DE RESPOSTA DA IA (TÁTICA SOB DEMANDA) COM EFEITO DE MINERAÇÃO === */}
       {(tacticalResult || isGeneratingTactics) && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in-up">
