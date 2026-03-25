@@ -86,11 +86,19 @@ export default function DashboardPage() {
     }
   };
 
+  // === MOTOR DE CARREGAMENTO BLINDADO (Fase 4) ===
   useEffect(() => {
+    let isCurrentTenant = true; // 🛡️ Flag de segurança contra Race Conditions
+
     async function loadDashboardOverview() {
       if (!tenantInfo?.id || tenantInfo.id <= 0) return;
+      
+      // 🧹 1. Limpa a memória fantasma imediatamente (Mata a sobreposição visual)
       setIsLoadingDashboard(true);
+      setDashboardData(null);
+      setPosts([]);
       setSelectedCompetitorIdx(0); 
+
       try {
         const token = localStorage.getItem("orion_token");
         const res = await fetch(`${API_URL}/api/dashboard/${tenantInfo.id}/overview`, {
@@ -99,16 +107,30 @@ export default function DashboardPage() {
         
         if(res.ok) {
            const data = await res.json();
-           setDashboardData(data);
-           setPosts(data.posts || []);
+           
+           // 🛡️ 2. Validação Crítica: Só injeta na tela se o usuário AINDA estiver neste cliente
+           if (isCurrentTenant) {
+             setDashboardData(data);
+             setPosts(data.posts || []);
+           }
         }
       } catch (error) {
-        console.error("Falha ao puxar dados do Dashboard", error);
+        if (isCurrentTenant) {
+          console.error("Falha ao puxar dados do Dashboard", error);
+        }
       } finally {
-        setIsLoadingDashboard(false);
+        if (isCurrentTenant) {
+          setIsLoadingDashboard(false);
+        }
       }
     }
+
     loadDashboardOverview();
+
+    // 🧹 3. O Assassino de Requisições: Se o ID mudar, invalida a requisição anterior
+    return () => {
+      isCurrentTenant = false;
+    };
   }, [tenantInfo?.id]);
 
   const handleStartEngine = async () => {

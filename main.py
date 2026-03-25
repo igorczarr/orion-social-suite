@@ -261,8 +261,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 # --- ROTAS DO NOVO COFRE (MULTI-TENANT) ---
 
 @app.post("/api/tenants", response_model=TenantResponse)
-def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente com Blindagem Transacional."""
+def add_new_client(
+    data: TenantCreate, 
+    background_tasks: BackgroundTasks, # 🚀 A INJEÇÃO DE BACKGROUND AQUI
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente com Blindagem Transacional e Ignição Automática."""
     
     clean_client_handle = clean_db_username(data.social_handle)
     new_tenant = None
@@ -323,6 +328,37 @@ def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_us
 
         db.commit()
         db.refresh(new_tenant)
+        
+        # =====================================================================
+        # 🚀 FASE 3: O GATILHO DE IGNIÇÃO (A RESSURREIÇÃO DO ORION)
+        # Acorda os robôs imediatamente em background para este novo cliente
+        # =====================================================================
+        tenant_id_for_bg = new_tenant.id
+        
+        def run_initial_cascade():
+            print(f"⏳ [IGNIÇÃO] Iniciando Raspagem Web para o novo cliente ID: {tenant_id_for_bg}")
+            try:
+                from modules.workers.worker_osint import OrionOSINT
+                osint_worker = OrionOSINT(
+                    apify_token=APIFY_TOKEN, 
+                    key_sociologo=GEMINI_KEY_SOCIOLOGO,
+                    key_espiao=GEMINI_KEY_ESPIAO
+                )
+                osint_worker.run_full_recon(tenant_id=tenant_id_for_bg)
+            except Exception as e_osint:
+                print(f"⚠️ Erro ao rodar o Motor OSINT Inicial: {e_osint}")
+
+            try:
+                from modules.workers.worker_scout import YouTubeScoutRadar
+                w3 = YouTubeScoutRadar(YOUTUBE_API_KEY)
+                w3.run_radar_cycle(target_tenant_id=tenant_id_for_bg)
+            except Exception as e3:
+                print(f"⚠️ Erro ao rodar o Scout Inicial: {e3}")
+
+        # Envia a tarefa de raspagem para a fila invisível do FastAPI
+        background_tasks.add_task(run_initial_cascade)
+        # =====================================================================
+
         return new_tenant
 
     except Exception as relation_error:
@@ -330,7 +366,7 @@ def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_us
         print(f"❌ [ERRO DE INTEGRIDADE] Falha ao criar ecossistema: {str(relation_error)}")
         # Ao retornar o erro 400, o CORS é respeitado e o React exibe o erro exato na tela
         raise HTTPException(status_code=400, detail=f"Falha de integridade no banco: {str(relation_error)}")
-
+    
 @app.get("/api/tenants", response_model=List[TenantResponse])
 def list_clients(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Devolve todos os clientes da agência de forma blindada."""
