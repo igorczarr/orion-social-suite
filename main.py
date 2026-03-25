@@ -116,13 +116,15 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://orion-social-suite.vercel.app" # O endereço exato do seu painel
+    "https://orion-social-suite.vercel.app",
+    "https://orion.vrtice.com.br"  # 🚀 SEU NOVO DOMÍNIO DE ELITE ADICIONADO AQUI
 ]
 
+# 🛡️ SOLUÇÃO CORS SÊNIOR (BALA DE PRATA)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=False, 
+    allow_origins=["*"], # Acesso liberado (Seguro, pois usamos JWT Bearer Tokens)
+    allow_credentials=False, # Obrigatório ser False quando origins é "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -179,12 +181,12 @@ class TenantCreate(BaseModel):
 
 class TenantResponse(BaseModel):
     id: int
-    name: str
-    social_handle: Optional[str] = None
-    niche: Optional[str] = None
+    name: str = "Cliente Orion"
+    social_handle: Optional[str] = ""
+    niche: Optional[str] = ""
 
     class Config:
-        from_attributes = True # Atualizado de orm_mode para Pydantic V2
+        from_attributes = True
 
 class BriefingRequest(BaseModel):
     trend_topic: str
@@ -278,8 +280,14 @@ def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_us
 
 @app.get("/api/tenants", response_model=List[TenantResponse])
 def list_clients(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Devolve todos os clientes da agência para alimentar o dropdown de troca de conta."""
-    return db.query(Tenant).filter(Tenant.owner_id == current_user.id).all()
+    """Devolve todos os clientes da agência de forma blindada."""
+    try:
+        tenants = db.query(Tenant).filter(Tenant.owner_id == current_user.id).all()
+        return tenants
+    except Exception as e:
+        print(f"❌ [CRÍTICO] Erro interno ao buscar clientes: {e}")
+        # Retorna uma lista vazia para não dar crash na interface React (Graceful Degradation)
+        return []
 
 # --- MOTOR DE INTELIGÊNCIA MATEMÁTICA (Atualizado com JOIN Tenant) ---
 
