@@ -112,19 +112,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 🛡️ SOLUÇÃO CORS SÊNIOR: LISTA VIP EXPLÍCITA DE ORIGENS
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://orion-social-suite.vercel.app",
-    "https://orion.vrtice.com.br"  # 🚀 SEU NOVO DOMÍNIO DE ELITE ADICIONADO AQUI
+    "https://orion.vrtice.com.br"
 ]
 
-# 🛡️ SOLUÇÃO CORS SÊNIOR (BALA DE PRATA)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Acesso liberado (Seguro, pois usamos JWT Bearer Tokens)
-    allow_credentials=False, # Obrigatório ser False quando origins é "*"
+    allow_origins=origins, 
+    allow_origin_regex=r"https://.*\.vercel\.app", # Mantém a flexibilidade para subdomínios da Vercel
+    allow_credentials=True, # 🔴 CRÍTICO: Deve ser True para aceitar o Bearer Token
     allow_methods=["*"],
     allow_headers=["*"],
 )
