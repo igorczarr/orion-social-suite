@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timedelta, timezone
@@ -239,43 +240,74 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @app.post("/api/tenants", response_model=TenantResponse)
 def add_new_client(data: TenantCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente."""
+    """Recebe os dados do Modal '+ Novo' do frontend e constrói o ecossistema do cliente com Blindagem Transacional."""
     
-    # 🛡️ FASE 1: Cria o Cliente (Tenant) - Sem injetar os relacionamentos em formato de string
-    new_tenant = Tenant(
-        owner_id=current_user.id,
-        name=data.name,
-        social_handle=data.social_handle,
-        niche=data.niche,
-        keywords=data.keywords
-        # Removido 'personas' e 'competitors' daqui para evitar o Erro 500
-    )
-    db.add(new_tenant)
-    db.flush() # Pega o ID do tenant gerado
-    
-    # Limpa o handle antes de salvar o TrackedProfile para evitar o bug do @
     clean_client_handle = clean_db_username(data.social_handle)
-    
-    # 2. Adiciona a conta do cliente ao Tracker
-    db.add(TrackedProfile(tenant_id=new_tenant.id, username=clean_client_handle, niche=data.niche, is_client_account=True))
-    
-    # 3. Adiciona os Concorrentes ao Tracker
-    if data.competitors:
-        for comp in data.competitors.split(","):
-            comp_clean = clean_db_username(comp)
-            if comp_clean:
-                db.add(TrackedProfile(tenant_id=new_tenant.id, username=comp_clean, niche=data.niche, is_client_account=False))
-                
-    # 4. Adiciona as Personas
-    if data.personas:
-        for persona in data.personas.split(","):
-            persona_clean = persona.strip()
-            if persona_clean:
-                db.add(Persona(tenant_id=new_tenant.id, name=persona_clean))
+    new_tenant = None
 
-    db.commit()
-    db.refresh(new_tenant)
-    return new_tenant
+    # 🛡️ TENTATIVA 1: Tenta criar o cliente usando o Schema Novo (com keywords)
+    try:
+        new_tenant = Tenant(
+            owner_id=current_user.id,
+            name=data.name,
+            social_handle=data.social_handle,
+            niche=data.niche,
+            keywords=data.keywords
+        )
+        db.add(new_tenant)
+        db.flush() # Força o banco a validar a estrutura agora
+        
+    except (OperationalError, ProgrammingError) as db_error:
+        # O banco rejeitou porque não tem a coluna keywords.
+        db.rollback() # Aborta a transação quebrada
+        print(f"⚠️ [AVISO DE SCHEMA] Tabela 'tenants' desatualizada. Inserindo dados via Fallback. Erro: {db_error}")
+        
+        # 🛡️ TENTATIVA 2 (Fallback): Cria usando o Schema Antigo
+        try:
+            new_tenant = Tenant(
+                owner_id=current_user.id,
+                name=data.name,
+                social_handle=data.social_handle,
+                niche=data.niche
+            )
+            db.add(new_tenant)
+            db.flush()
+        except Exception as fallback_error:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Erro crítico irrecuperável no banco: {str(fallback_error)}")
+            
+    except Exception as fatal_error:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro desconhecido: {str(fatal_error)}")
+
+    # 🛡️ FASE 2: Se passou pela criação do Tenant, cria os relacionamentos (Arena, Personas)
+    try:
+        # Adiciona a conta do cliente ao Tracker
+        db.add(TrackedProfile(tenant_id=new_tenant.id, username=clean_client_handle, niche=data.niche, is_client_account=True))
+        
+        # Adiciona os Concorrentes ao Tracker
+        if data.competitors:
+            for comp in data.competitors.split(","):
+                comp_clean = clean_db_username(comp)
+                if comp_clean:
+                    db.add(TrackedProfile(tenant_id=new_tenant.id, username=comp_clean, niche=data.niche, is_client_account=False))
+                    
+        # Adiciona as Personas
+        if data.personas:
+            for persona in data.personas.split(","):
+                persona_clean = persona.strip()
+                if persona_clean:
+                    db.add(Persona(tenant_id=new_tenant.id, name=persona_clean))
+
+        db.commit()
+        db.refresh(new_tenant)
+        return new_tenant
+
+    except Exception as relation_error:
+        db.rollback()
+        print(f"❌ [ERRO DE INTEGRIDADE] Falha ao criar ecossistema: {str(relation_error)}")
+        # Ao retornar o erro 400, o CORS é respeitado e o React exibe o erro exato na tela
+        raise HTTPException(status_code=400, detail=f"Falha de integridade no banco: {str(relation_error)}")
 
 @app.get("/api/tenants", response_model=List[TenantResponse])
 def list_clients(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
