@@ -2,59 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { 
-  Trophy, Star, Target, Zap, Flame, 
-  CheckCircle2, Lock, Crown, ChevronRight, 
-  RefreshCw, Medal, Swords
+  Clapperboard, Magnet, Zap, Flame, 
+  Target, Calculator, ArrowRight, PlayCircle, 
+  Activity, CheckCircle2, ShieldAlert, Crosshair, 
+  Layers, RefreshCw, PenTool, BatteryCharging
 } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
+import { motion, AnimatePresence } from "framer-motion";
 
-// Leaderboard simulado para demonstrar o potencial multiplayer do SaaS
-const mockLeaderboard = [
-  { rank: 1, name: "Sofia Valentini", role: "Estrategista", xp: 12450, initials: "SV", trend: "up" },
-  { rank: 2, name: "Você (Logado)", role: "Operador", xp: 9820, initials: "VC", trend: "up" },
-  { rank: 3, name: "Ana P.", role: "Video Maker", xp: 8100, initials: "AP", trend: "down" },
+// === DADOS MOCKADOS (Até a API do Pilar 5/6 estar finalizada no Backend) ===
+const mockStoryboard = [
+  { id: 1, ep: "Episódio 1", type: "Dopamina", title: "O grande inimigo do seu nicho", status: "Pronto", openLoop: "Revela um erro fatal, mas a solução é adiada." },
+  { id: 2, ep: "Episódio 2", type: "Ocitocina", title: "Bastidores do meu maior fracasso", status: "Rascunho", openLoop: "Mostra vulnerabilidade, conecta a dor com o produto." },
+  { id: 3, ep: "Episódio 3", type: "Serotonina", title: "Prova Social: Como o Cliente X venceu", status: "Em Produção", openLoop: "O gatilho de status que prepara o terreno para a oferta." },
 ];
 
-export default function GamificationPage() {
+export default function TheSyndicatePage() {
   const { tenantInfo, toggleTenant } = useTenant();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   
-  // === ESTADOS LIGADOS AO BACKEND ===
-  const [playerStats, setPlayerStats] = useState<any>(null);
-  const [quests, setQuests] = useState<any[]>([]);
-  const [campaignProgress, setCampaignProgress] = useState<{current: number, target: number, missing: number, percent: number} | null>(null);
+  // === ESTADOS DO GRAND SLAM (PILAR 6) ===
+  const [offerPromise, setOfferPromise] = useState(8); // Certeza de resultado (0-10)
+  const [offerEffort, setOfferEffort] = useState(6); // Esforço exigido do cliente (0-10)
+  const [isGeneratingOffer, setIsGeneratingOffer] = useState(false);
 
-  const loadGamificationData = async () => {
+  const loadSyndicateData = async () => {
     setIsLoading(true);
     setIsRefreshing(true);
     try {
-      const token = localStorage.getItem("vrtice_token");
-      
-      // 1. Busca os dados do jogador (Independente do cliente)
-      const gamiRes = await fetch("http://localhost:8000/api/gamification/dashboard", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      
-      if (gamiRes.ok) {
-        const gamiData = await gamiRes.json();
-        setPlayerStats(gamiData.player);
-        setQuests(gamiData.quests || []);
-      }
-
-      // 2. Busca a Barra de Progresso do Cliente Selecionado (Reaproveitando a rota Overview)
-      if (tenantInfo?.id) {
-        const dashRes = await fetch(`http://localhost:8000/api/dashboard/${tenantInfo.id}/overview`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (dashRes.ok) {
-          const dashData = await dashRes.json();
-          setCampaignProgress(dashData.gamification);
-        }
-      }
-      
+      // Simula a busca de dados dos Pilares 5 e 6
+      await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
-      console.error("Falha ao sincronizar Gamificação:", error);
+      console.error("Falha ao sincronizar o Sindicato:", error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -62,260 +42,262 @@ export default function GamificationPage() {
   };
 
   useEffect(() => {
-    loadGamificationData();
+    loadSyndicateData();
   }, [tenantInfo?.id]);
 
   const handleRefresh = () => {
-    loadGamificationData();
+    loadSyndicateData();
   };
 
-  // Simula a conclusão visual de uma missão (numa versão final, faria um POST para a API)
-  const toggleQuest = (id: number) => {
-    setQuests(quests.map(q => q.id === id ? { ...q, completed: !q.completed } : q));
+  const handleGenerateCopy = () => {
+    setIsGeneratingOffer(true);
+    setTimeout(() => {
+      setIsGeneratingOffer(false);
+      alert("Acesso ao Módulo de VSL restrito na versão atual de teste. A oferta precisa de um Esforço menor que 4 para aprovação automática da IA.");
+    }, 2000);
   };
 
-  // Cálculos visuais
-  const displayXP = playerStats?.xp || 0;
-  const currentLevel = displayXP > 10000 ? "Tier S" : displayXP > 5000 ? "Tier A" : "Tier B";
-  const xpForNextLevel = displayXP > 10000 ? 15000 : displayXP > 5000 ? 10000 : 5000;
-  const missingXP = xpForNextLevel - displayXP;
-
-  // Substitui a linha "Você" no Leaderboard pelo XP real do usuário
-  const activeLeaderboard = mockLeaderboard.map(user => {
-    if (user.initials === "VC") return { ...user, xp: displayXP };
-    return user;
-  }).sort((a, b) => b.xp - a.xp); // Re-ordena baseado no novo XP
-  
-  // Atualiza os ranks
-  activeLeaderboard.forEach((user, index) => user.rank = index + 1);
+  // === CÁLCULO DA OFERTA (Hormozi) ===
+  // Equação de Valor = (Promessa) / (Esforço/Tempo). Simplificado para demonstração UI.
+  const offerScore = Math.min(Math.round((offerPromise * 10) / (offerEffort + 1)), 99);
+  const isOfferReady = offerScore > 75;
 
   return (
-    <div className="space-y-8 animate-fade-in-up pb-20">
-      
-      {/* 1. CABEÇALHO TÁTICO */}
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-v-white-off/10 pb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <span className="w-2 h-2 rounded-full bg-v-gold animate-pulse shadow-[0_0_10px_#C8A970]"></span>
-            <span className="font-montserrat text-[0.65rem] text-v-gold uppercase tracking-widest border border-v-gold/30 px-2 py-1 bg-v-gold/10">
-              Protocolo de Engajamento Ativo
-            </span>
-          </div>
-          <h1 className="font-abhaya text-4xl md:text-5xl font-bold text-v-white-off tracking-wide">
-            Metas & <span className="text-gold-gradient">Gamificação</span>
-          </h1>
-          <p className="font-montserrat text-xs text-gray-500 uppercase tracking-widest mt-2">
-            Nível de Operação, Missões e Ranking da Equipa
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-4 bg-white/5 border border-v-white-off/10 p-2 rounded-sm backdrop-blur-sm">
-            <div className="w-10 h-10 bg-v-blue-navy rounded-sm flex items-center justify-center font-abhaya text-v-gold text-xl border border-v-gold/20">
-              {tenantInfo?.initials || "-"}
-            </div>
-            <div className="pr-2 hidden sm:block">
-              <p className="font-montserrat text-[0.6rem] text-gray-500 uppercase tracking-widest">Esquadrão Ativo</p>
-              <p className="font-montserrat text-sm font-bold text-v-white-off">{tenantInfo?.name || "Carregando..."}</p>
-            </div>
-            <button 
-              onClick={toggleTenant}
-              className="px-3 py-2 text-[0.65rem] font-bold text-v-black bg-v-gold uppercase tracking-widest hover:bg-v-white-off transition-colors rounded-sm"
-            >
-              Trocar
-            </button>
-          </div>
-          <button 
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className={`p-3 bg-white/5 border border-white/10 rounded-sm hover:bg-v-gold/10 hover:text-v-gold transition-colors ${isRefreshing ? 'animate-spin text-v-gold border-v-gold' : 'text-gray-400'}`}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
-      </header>
-
-      {/* 2. STATUS DO JOGADOR (KPIs Gamificados Reais) */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricBox title="Nível Atual" value={isLoading ? "..." : currentLevel} subtitle="Mestre em Retenção" icon={<Crown size={16} />} color="text-v-gold" />
-        <MetricBox title="Experiência (XP)" value={isLoading ? "..." : displayXP.toLocaleString('pt-BR')} subtitle={`Faltam ${missingXP} para Rank Up`} icon={<Star size={16} />} color="text-blue-400" />
-        <MetricBox title="Sequência (Streak)" value={isLoading ? "..." : `${playerStats?.streak || 0} Dias`} subtitle="Acesso contínuo" icon={<Flame size={16} />} color="text-orange-500" />
-        <MetricBox title="Taxa de Vitória" value="88%" subtitle="Metas batidas no mês" icon={<Target size={16} />} color="text-green-500" />
-      </section>
-
-      {/* 3. O CAMPO DE BATALHA */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* COLUNA ESQUERDA (Span 2): Missões e Progresso Macro */}
-        <div className="lg:col-span-2 space-y-6">
+    // NO-SCROLL CONTAINER
+    <div className="relative h-full w-full overflow-hidden flex flex-col">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-10">
+        <div className="max-w-[1600px] mx-auto space-y-8 pb-32">
           
-          {/* 3A. Progresso Macro (O Grande Objetivo) */}
-          <div className="glass-panel border border-v-gold/30 rounded-sm p-8 bg-v-gold/5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 opacity-5 pointer-events-none p-4"><Trophy size={180} className="text-v-gold" /></div>
-            <div className="relative z-10">
-              <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-v-gold flex items-center gap-2 mb-6">
-                <Target size={14} /> Campanha Macro do Trimestre
-              </h3>
-              
-              <div className="flex justify-between items-end mb-3">
-                <div>
-                  <p className="font-abhaya text-3xl font-bold text-v-white-off">Marco de Ouro</p>
-                  <p className="font-montserrat text-xs text-gray-400 mt-1">Atingir {campaignProgress?.target?.toLocaleString('pt-BR') || "10.000"} Seguidores</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-montserrat text-2xl font-bold text-v-white-off">{campaignProgress?.percent || 0}%</p>
-                </div>
+          {/* 1. CABEÇALHO TÁTICO */}
+          <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-v-white-off/10 pb-6 relative z-10">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_10px_#f97316]"></span>
+                <span className="font-montserrat text-[0.65rem] text-orange-400 uppercase tracking-widest border border-orange-500/30 px-2 py-1 bg-orange-500/10 rounded-md shadow-[0_0_10px_rgba(249,115,22,0.2)]">
+                  Câmara de Ativação
+                </span>
               </div>
-              
-              {/* Barra de Progresso Luxuosa */}
-              <div className="w-full h-4 bg-v-black border border-v-white-off/10 rounded-full overflow-hidden shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)]">
-                <div 
-                  className="h-full bg-linear-to-r from-v-brown-earth via-v-gold to-[#FFE5A3] relative shadow-[0_0_15px_rgba(200,169,112,0.5)] transition-all duration-1000"
-                  style={{ width: `${campaignProgress?.percent || 0}%` }}
-                >
-                  <div className="absolute top-0 right-0 w-2 h-full bg-white/50 animate-pulse"></div>
-                </div>
-              </div>
-              
-              <div className="mt-4 flex justify-between text-[0.65rem] font-montserrat uppercase tracking-widest text-gray-500">
-                <span>Atual: {campaignProgress?.current?.toLocaleString('pt-BR') || 0}</span>
-                <span>Faltam: {campaignProgress?.missing?.toLocaleString('pt-BR') || 0}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 3B. Quests Diárias (Missões Operacionais da API) */}
-          <div className="glass-panel border border-v-white-off/10 rounded-sm flex flex-col h-[350px]">
-            <div className="p-6 border-b border-v-white-off/10 flex justify-between items-center bg-white/5 shrink-0">
-              <h3 className="font-montserrat text-[0.65rem] font-bold uppercase tracking-widest text-v-white-off flex items-center gap-2">
-                <Swords size={14} className="text-v-gold" /> Missões Táticas (Hoje)
-              </h3>
-              <span className="text-[0.6rem] text-gray-400 font-montserrat">Reset à Meia-Noite</span>
+              <h1 className="font-abhaya text-4xl md:text-5xl font-bold text-v-white-off tracking-wide">
+                O <span className="text-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]">Sindicato</span>
+              </h1>
+              <p className="font-montserrat text-xs text-gray-500 uppercase tracking-widest mt-2">
+                Showrunning & Engenharia de Fechamento
+              </p>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-6 space-y-3 scrollbar-thin scrollbar-thumb-v-gold/20">
-              {isLoading ? (
-                 <div className="text-center py-10 text-v-gold animate-pulse font-montserrat text-xs uppercase tracking-widest">Aguardando ordens do comando...</div>
-              ) : quests.length > 0 ? (
-                quests.map(quest => (
-                  <div 
-                    key={quest.id} 
-                    onClick={() => toggleQuest(quest.id)}
-                    className={`p-4 rounded-sm border cursor-pointer transition-all flex items-center gap-4 ${
-                      quest.completed 
-                        ? 'bg-v-gold/5 border-v-gold/30' 
-                        : 'bg-v-black/50 border-v-white-off/5 hover:border-v-white-off/20'
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4">
+              <div className="flex items-center gap-2 bg-black/60 border border-white/10 p-2 rounded-xl backdrop-blur-md shadow-2xl relative group hover:border-orange-500/30 transition-colors">
+                <div className="w-10 h-10 bg-orange-900/20 rounded-lg flex items-center justify-center font-abhaya text-orange-500 text-xl border border-orange-500/40 shadow-[inset_0_0_15px_rgba(249,115,22,0.3)]">
+                  {tenantInfo?.initials || "-"}
+                </div>
+                <div className="pr-2 hidden sm:block">
+                  <p className="font-montserrat text-[0.6rem] text-gray-500 uppercase tracking-widest">A Produzir Para</p>
+                  <p className="font-montserrat text-sm font-bold text-v-white-off">{tenantInfo?.name || "Carregando..."}</p>
+                </div>
+                <motion.button 
+                  whileTap={{ scale: 0.95 }}
+                  onClick={toggleTenant}
+                  className="px-3 py-2 text-[0.65rem] font-bold text-black bg-orange-500 uppercase tracking-widest hover:bg-orange-400 transition-colors rounded-md shadow-[0_0_10px_rgba(249,115,22,0.3)]"
+                >
+                  Trocar
+                </motion.button>
+              </div>
+
+              <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className={`p-3 bg-black border rounded-xl transition-all shadow-lg flex items-center justify-center ${isRefreshing ? 'border-orange-500 bg-orange-500/10 text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]' : 'border-white/10 text-gray-400 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5'}`}
+                title="Sincronizar Produção"
+              >
+                <RefreshCw size={18} className={isRefreshing ? "animate-spin" : ""} />
+              </motion.button>
+            </div>
+          </header>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch relative z-10">
+            
+            {/* === COLUNA 1: O SHOWRUNNER (PILAR 5) === */}
+            <section className="glass-panel border border-orange-500/20 rounded-xl flex flex-col h-[700px] relative overflow-hidden bg-[#050505] shadow-[0_0_40px_rgba(249,115,22,0.05)]">
+              <div className="absolute -right-10 -top-10 opacity-[0.02] pointer-events-none text-orange-500">
+                <Clapperboard size={300} />
+              </div>
+              
+              <div className="p-6 border-b border-orange-500/20 flex justify-between items-center relative z-10 shrink-0 bg-black/80 backdrop-blur-md">
+                <div>
+                  <h3 className="font-montserrat text-xs font-bold uppercase tracking-widest text-orange-500 flex items-center gap-2">
+                    <Clapperboard size={16} /> Matriz de Retenção (A Série)
+                  </h3>
+                  <p className="text-[0.6rem] text-gray-500 font-montserrat uppercase tracking-widest mt-1">
+                    Orquestrando Open Loops e Neuroquímica
+                  </p>
+                </div>
+                <span className="text-[0.6rem] font-bold uppercase tracking-widest px-3 py-1 bg-orange-500/10 text-orange-400 rounded-md border border-orange-500/20 flex items-center gap-2 shadow-[inset_0_0_15px_rgba(249,115,22,0.2)]">
+                  <Activity size={10} className="animate-pulse" /> IA Showrunner
+                </span>
+              </div>
+
+              {/* Balança de Dopamina */}
+              <div className="p-6 border-b border-white/5 bg-black/40 relative z-10 shrink-0">
+                <div className="flex justify-between items-end mb-2">
+                  <p className="font-montserrat text-[0.6rem] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                    <BatteryCharging size={12} className="text-orange-400" /> Balança Neuroquímica da Semana
+                  </p>
+                  <p className="font-montserrat text-[0.6rem] text-green-400 uppercase tracking-widest">Ideal</p>
+                </div>
+                <div className="w-full h-2 bg-black/80 rounded-full overflow-hidden border border-white/5 flex shadow-inner">
+                  <div className="h-full bg-red-500 transition-all shadow-[0_0_10px_#ef4444]" style={{ width: `40%` }} title="Dopamina (Entretenimento/Choque)"></div>
+                  <div className="h-full bg-blue-500 transition-all shadow-[0_0_10px_#3b82f6]" style={{ width: `30%` }} title="Ocitocina (Vulnerabilidade/Conexão)"></div>
+                  <div className="h-full bg-green-500 transition-all shadow-[0_0_10px_#22c55e]" style={{ width: `30%` }} title="Serotonina (Status/Autoridade)"></div>
+                </div>
+                <div className="flex justify-between mt-2 text-[0.5rem] font-montserrat uppercase tracking-widest font-bold">
+                  <span className="text-red-500">DOPAMINA</span>
+                  <span className="text-blue-500">OCITOCINA</span>
+                  <span className="text-green-500">SEROTONINA</span>
+                </div>
+              </div>
+
+              <div className="flex-1 p-6 overflow-y-auto custom-scrollbar relative z-10 bg-black/20">
+                <div className="space-y-4">
+                  {mockStoryboard.map((ep, idx) => (
+                    <motion.div 
+                      key={ep.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="bg-black/60 border border-white/5 p-5 rounded-xl hover:border-orange-500/30 transition-all group relative overflow-hidden"
+                    >
+                      <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-transparent via-orange-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                      
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[0.55rem] font-bold text-gray-500 uppercase tracking-widest">{ep.ep}</span>
+                          <span className={`text-[0.55rem] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${ep.type === 'Dopamina' ? 'bg-red-500/10 text-red-400 border-red-500/30' : ep.type === 'Ocitocina' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' : 'bg-green-500/10 text-green-400 border-green-500/30'}`}>
+                            {ep.type}
+                          </span>
+                        </div>
+                        <span className={`text-[0.55rem] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border ${ep.status === 'Pronto' ? 'bg-green-500/5 border-green-500/20 text-green-500' : 'bg-gray-500/5 border-gray-500/20 text-gray-500'}`}>
+                          {ep.status}
+                        </span>
+                      </div>
+                      
+                      <h4 className="font-abhaya text-xl text-v-white-off mb-2">{ep.title}</h4>
+                      
+                      <div className="mt-3 p-3 bg-orange-500/5 border border-orange-500/10 rounded-lg">
+                        <p className="text-[0.6rem] font-montserrat font-bold text-orange-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Zap size={10}/> Open Loop</p>
+                        <p className="text-xs text-gray-300 font-montserrat italic">{ep.openLoop}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+                
+                <div className="mt-6 border-2 border-dashed border-white/10 rounded-xl p-4 flex items-center justify-center cursor-pointer hover:border-orange-500/50 hover:bg-orange-500/5 transition-all text-gray-500 hover:text-orange-400 group">
+                  <div className="text-center font-montserrat text-[0.65rem] font-bold uppercase tracking-widest flex items-center gap-2">
+                    <Layers size={14} className="group-hover:scale-110 transition-transform" /> 
+                    <span>Adicionar Episódio (IA)</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* === COLUNA 2: A MÁQUINA DE VENDAS (PILAR 6) === */}
+            <section className="glass-panel border border-green-500/20 rounded-xl flex flex-col h-[700px] relative overflow-hidden bg-[#050505] shadow-[0_0_40px_rgba(34,197,94,0.05)]">
+              <div className="absolute -right-10 -bottom-10 opacity-[0.02] pointer-events-none text-green-500">
+                <Magnet size={300} />
+              </div>
+
+              <div className="p-6 border-b border-green-500/20 flex justify-between items-center relative z-10 shrink-0 bg-black/80 backdrop-blur-md">
+                <div>
+                  <h3 className="font-montserrat text-xs font-bold uppercase tracking-widest text-green-400 flex items-center gap-2">
+                    <Magnet size={16} /> Calculadora Grand Slam (Vendas)
+                  </h3>
+                  <p className="text-[0.6rem] text-gray-500 font-montserrat uppercase tracking-widest mt-1">
+                    Equação de Valor & Risco Assimétrico
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex-1 p-6 relative z-10 flex flex-col gap-6">
+                
+                {/* O Medidor de Risco/Oferta */}
+                <div className="bg-black/60 border border-white/5 rounded-2xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-inner">
+                  <div className={`absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent ${isOfferReady ? 'via-green-500' : 'via-red-500'} to-transparent transition-colors duration-500`}></div>
+                  
+                  <p className="font-montserrat text-[0.6rem] font-bold text-gray-500 uppercase tracking-widest mb-4">Índice de Irresistibilidade</p>
+                  
+                  <div className="flex items-end justify-center gap-2">
+                    <span className={`font-abhaya text-7xl font-bold transition-colors duration-500 drop-shadow-md ${isOfferReady ? 'text-green-400' : 'text-red-500'}`}>
+                      {offerScore}
+                    </span>
+                    <span className="font-montserrat text-sm text-gray-500 mb-2 uppercase font-bold tracking-widest">/ 100</span>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-2">
+                    {isOfferReady ? (
+                      <span className="text-[0.65rem] text-green-400 font-bold uppercase tracking-widest flex items-center gap-1 bg-green-500/10 px-3 py-1 rounded-md border border-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.2)]"><CheckCircle2 size={12}/> Oferta Letal. Pronta para Escala.</span>
+                    ) : (
+                      <span className="text-[0.65rem] text-red-500 font-bold uppercase tracking-widest flex items-center gap-1 bg-red-500/10 px-3 py-1 rounded-md border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]"><ShieldAlert size={12}/> Alto Atrito. A IA recusará gerar copy.</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Os Controlos da Equação (Sliders) */}
+                <div className="space-y-6 flex-1">
+                  <div className="space-y-2 group">
+                    <div className="flex justify-between">
+                      <label className="text-[0.65rem] font-montserrat font-bold text-gray-400 uppercase tracking-widest group-hover:text-v-white-off transition-colors">Resultado Prometido (Certeza)</label>
+                      <span className="text-[0.65rem] font-mono text-green-400">{offerPromise}/10</span>
+                    </div>
+                    <input 
+                      type="range" min="1" max="10" 
+                      value={offerPromise} onChange={(e) => setOfferPromise(parseInt(e.target.value))}
+                      className="w-full accent-green-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <p className="text-[0.55rem] text-gray-500 font-montserrat">Quão rápido e garantido é o resultado principal?</p>
+                  </div>
+
+                  <div className="space-y-2 group">
+                    <div className="flex justify-between">
+                      <label className="text-[0.65rem] font-montserrat font-bold text-gray-400 uppercase tracking-widest group-hover:text-v-white-off transition-colors">Esforço Exigido (Fricção)</label>
+                      <span className="text-[0.65rem] font-mono text-red-400">{offerEffort}/10</span>
+                    </div>
+                    <input 
+                      type="range" min="1" max="10" 
+                      value={offerEffort} onChange={(e) => setOfferEffort(parseInt(e.target.value))}
+                      className="w-full accent-red-500 h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <p className="text-[0.55rem] text-gray-500 font-montserrat">Quanto tempo/dinheiro o cliente perde antes de ver valor?</p>
+                  </div>
+                </div>
+
+                {/* Botão de Ativação */}
+                <div className="mt-auto">
+                  <motion.button 
+                    whileTap={{ scale: isOfferReady ? 0.95 : 1 }}
+                    onClick={handleGenerateCopy}
+                    disabled={!isOfferReady || isGeneratingOffer}
+                    className={`w-full py-4 font-montserrat text-[0.65rem] font-bold uppercase tracking-widest transition-all rounded-xl flex justify-center items-center gap-2 ${
+                      isOfferReady 
+                        ? 'bg-green-600 text-white shadow-[0_0_25px_rgba(34,197,94,0.4)] hover:bg-green-500 cursor-pointer' 
+                        : 'bg-black border border-white/5 text-gray-600 cursor-not-allowed'
                     }`}
                   >
-                    <div className={`shrink-0 transition-colors ${quest.completed ? 'text-v-gold' : 'text-gray-600'}`}>
-                      <CheckCircle2 size={24} />
-                    </div>
-                    <div className="flex-1">
-                      <p className={`font-montserrat text-sm font-bold transition-colors ${quest.completed ? 'text-v-white-off line-through opacity-70' : 'text-v-white-off'}`}>
-                        {quest.task}
-                      </p>
-                    </div>
-                    <div className={`flex items-center gap-1 font-bold text-xs uppercase tracking-widest px-3 py-1 rounded-sm ${quest.completed ? 'bg-v-gold text-v-black' : 'bg-white/5 text-v-gold border border-v-gold/20'}`}>
-                      +{quest.xp} XP
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 text-gray-500 font-montserrat text-xs">
-                  A Central de Comando não gerou missões para si hoje. O Vórtex gerará missões ao identificar alvos.
+                    {isGeneratingOffer ? (
+                      <><Activity size={14} className="animate-spin" /> Aplicando Gatilhos de Cialdini...</>
+                    ) : (
+                      <><PenTool size={14} /> Gerar VSL & Sequência de Fechamento</>
+                    )}
+                  </motion.button>
+                  {!isOfferReady && (
+                    <p className="text-center text-[0.55rem] text-red-500/70 uppercase tracking-widest mt-3 font-montserrat font-bold">
+                      Reduza o Esforço Exigido para desbloquear a Máquina.
+                    </p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* COLUNA DIREITA (Span 1): Leaderboard e Badges */}
-        <div className="grid grid-rows-2 gap-6 h-full">
-          
-          {/* Leaderboard da Equipa */}
-          <div className="glass-panel border border-v-white-off/10 rounded-sm flex flex-col">
-            <div className="p-4 border-b border-v-white-off/10 flex justify-between items-center bg-white/5">
-              <h3 className="font-montserrat text-[0.6rem] font-bold uppercase tracking-widest text-v-white-off flex items-center gap-2">
-                <Medal size={12} className="text-v-gold" /> Ranking da Equipa
-              </h3>
-            </div>
-            <div className="flex-1 p-4 flex flex-col justify-center space-y-4">
-              {activeLeaderboard.map((user, idx) => (
-                <div key={user.rank} className="flex items-center gap-4 p-2 rounded-sm hover:bg-white/5 transition-colors">
-                  <div className={`w-6 font-abhaya text-xl font-bold flex justify-center ${idx === 0 ? 'text-v-gold' : idx === 1 ? 'text-gray-300' : 'text-[#cd7f32]'}`}>
-                    #{user.rank}
-                  </div>
-                  <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-[0.6rem] font-bold text-v-white-off ${user.initials === 'VC' ? 'bg-v-gold/20 border-v-gold' : 'bg-v-black border-v-white-off/20'}`}>
-                    {user.initials}
-                  </div>
-                  <div className="flex-1">
-                    <p className={`font-montserrat text-xs font-bold ${user.initials === 'VC' ? 'text-v-gold' : 'text-v-white-off'}`}>{user.name}</p>
-                    <p className="font-montserrat text-[0.55rem] text-gray-500 uppercase tracking-widest">{user.role}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-xs text-v-gold">{user.xp.toLocaleString('pt-BR')}</p>
-                    <p className="text-[0.5rem] uppercase text-gray-500">XP</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Badges / Conquistas */}
-          <div className="glass-panel border border-v-white-off/10 rounded-sm flex flex-col">
-            <div className="p-4 border-b border-v-white-off/10 flex justify-between items-center bg-white/5">
-              <h3 className="font-montserrat text-[0.6rem] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2">
-                <Star size={12} className="text-v-gold" /> Arsenal Desbloqueado
-              </h3>
-              <span className="text-[0.55rem] text-gray-500 uppercase tracking-widest">3 de 12</span>
-            </div>
-            <div className="flex-1 p-5 grid grid-cols-3 gap-3 place-content-center">
-              
-              {/* Badge Desbloqueado */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 h-12 rounded-full bg-v-gold/10 border-2 border-v-gold flex items-center justify-center shadow-[0_0_15px_rgba(200,169,112,0.3)] group-hover:scale-110 transition-transform">
-                  <Flame className="text-v-gold" size={20} />
-                </div>
-                <span className="font-montserrat text-[0.5rem] uppercase tracking-widest text-v-white-off text-center">Viralizador</span>
               </div>
+            </section>
 
-              {/* Badge Desbloqueado */}
-              <div className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="w-12 h-12 rounded-full bg-blue-500/10 border-2 border-blue-400 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.3)] group-hover:scale-110 transition-transform">
-                  <Target className="text-blue-400" size={20} />
-                </div>
-                <span className="font-montserrat text-[0.5rem] uppercase tracking-widest text-v-white-off text-center">Sniper</span>
-              </div>
-
-              {/* Badge Bloqueado */}
-              <div className="flex flex-col items-center gap-2 opacity-40 grayscale">
-                <div className="w-12 h-12 rounded-full bg-v-black border border-gray-600 flex items-center justify-center">
-                  <Lock className="text-gray-500" size={20} />
-                </div>
-                <span className="font-montserrat text-[0.5rem] uppercase tracking-widest text-gray-500 text-center">Mestre IA</span>
-              </div>
-
-            </div>
           </div>
-        </div>
-
-      </section>
-    </div>
-  );
-}
-
-// Sub-componente da Caixa de Métrica
-function MetricBox({ title, value, subtitle, icon, color }: { title: string, value: string, subtitle: string, icon: React.ReactNode, color: string }) {
-  return (
-    <div className="glass-panel p-5 border border-v-white-off/5 rounded-sm hover:border-v-gold/30 transition-colors flex flex-col justify-between h-32">
-      <div className="flex justify-between items-start">
-        <p className="font-montserrat text-[0.6rem] uppercase tracking-widest text-gray-500">{title}</p>
-        <div className={`${color} opacity-80`}>{icon}</div>
-      </div>
-      <div>
-        <div className={`font-abhaya text-3xl font-bold mb-1 ${color}`}>{value}</div>
-        <div className="text-[0.6rem] text-gray-400 uppercase tracking-wide">
-          {subtitle}
         </div>
       </div>
     </div>
