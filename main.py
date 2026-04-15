@@ -165,6 +165,8 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://orion-social-suite.vercel.app",
+    "https://www.vrtice.com.br",
+    "https://vrtice.com.br"
     "https://orion.vrtice.com.br",
     "*" # 🚀 INJEÇÃO: Wildcard para aceitar chamadas do Github Pages/HTML externo
 ]
@@ -325,50 +327,62 @@ def receive_external_briefing(
     db: Session = Depends(get_db)
 ):
     """
-    Ponto de Entrada do Formulário Externo. 
-    Lê o JSON, cria o Tenant e armazena o ClientBriefing para a IA usar depois.
+    O Cofre de Leads: Recebe o formulário externo e cria um 'Pré-Projeto'.
+    A agência depois enriquece este Lead dentro do Orion.
     """
     try:
-        # 1. Define um owner padrão (O Admin principal da agência)
+        # 1. Garante que existe um "Dono" para o projeto no banco de dados
         admin = db.query(User).first()
-        owner_id = admin.id if admin else 1
+        if not admin:
+            # Se o banco estiver vazio, cria um admin fantasma temporário
+            admin = User(email="admin@vrtice.com.br", hashed_password=b"fallback", role="admin")
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+            
+        owner_id = admin.id
 
-        # 2. Cria o Tenant (O novo Cliente)
+        # 2. Limpeza do Instagram
         clean_ig = clean_db_username(payload.Instagram)
+        
+        # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
         new_tenant = Tenant(
             owner_id=owner_id,
-            name=payload.Nome,
+            name=f"[LEAD] {payload.Nome}", # 🚀 Facilita a identificação no vosso Painel Orion
             social_handle=clean_ig,
             niche=payload.Profissao,
-            keywords=payload.Q01_Servico_Principal[:50] # Fragmento base
+            keywords="", # Vazio para a equipa preencher depois
+            competitors="",
+            personas=""
         )
         db.add(new_tenant)
-        db.flush() # Dá o ID do tenant imediatamente
+        db.flush() # Força a geração do ID
 
-        # 3. Cria a Bússola Tática (ClientBriefing)
+        # 4. Salva o Briefing e TODOS os dados brutos (Email, WhatsApp) no JSON
         new_briefing = ClientBriefing(
             tenant_id=new_tenant.id,
+            raw_data=payload.model_dump(by_alias=True), # 🚀 Salva o formulário 100% intacto aqui
             product_name=payload.Profissao,
             product_description=f"Serviço Principal: {payload.Q01_Servico_Principal}",
-            target_audience=payload.Q04_Gargalo, # Mapeamento provisório das dores
+            target_audience=payload.Q04_Gargalo,
             main_pain_points=[payload.Q04_Gargalo, payload.Q05_Tempo_Gasto],
             unique_selling_point=payload.Q07_Cenario_Ideal
         )
         db.add(new_briefing)
-        
-        # 4. Adiciona ao Radar de Raspagem
+
+        # 5. Já adiciona ao radar (Scout) silenciosamente
         db.add(TrackedProfile(tenant_id=new_tenant.id, username=clean_ig, niche=payload.Profissao, is_client_account=True))
 
         db.commit()
-        print(f"🎯 [ONBOARDING] Novo briefing recebido de {payload.Nome}. Tenant ID: {new_tenant.id} forjado na base.")
+        print(f"🎯 [NOVO LEAD] Mapeamento recebido de: {payload.Nome} ({payload.Email}).")
 
-        return {"status": "success", "message": "Briefing absorvido com sucesso pelo Córtex Orion."}
+        return {"status": "success", "message": "Mapeamento recebido com sucesso!"}
 
     except Exception as e:
         db.rollback()
-        print(f"❌ [ERRO ONBOARDING] Falha ao processar briefing externo: {e}")
-        raise HTTPException(status_code=500, detail="Falha ao processar e salvar os dados do mapeamento.")
-
+        print(f"❌ [ERRO ONBOARDING] Falha no Banco de Dados: {e}")
+        # Retorna o erro exato para o Front-end para facilitar diagnóstico se falhar novamente
+        raise HTTPException(status_code=500, detail=str(e))
 # --- ROTAS DO NOVO COFRE (MULTI-TENANT) ---
 
 @app.post("/api/tenants", response_model=TenantResponse)
