@@ -1,135 +1,73 @@
-// contexts/TenantContext.tsx
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { OrionAPI } from "@/lib/api";
+import { useRouter, usePathname } from "next/navigation";
 
-// A Estrutura de dados que vem do Backend (Python)
+// Estrutura de Elite para os dados do cliente
 export interface TenantData {
   id: number;
   name: string;
   initials: string;
-  social_handle?: string;
-  niche?: string;
-  keywords?: string;      
-  personas?: string[];    
-  competitors?: string[]; 
+  social_handle: string;
+  niche: string;
 }
 
 interface TenantContextProps {
-  tenants: TenantData[];
   tenantInfo: TenantData | null;
   isLoading: boolean;
-  toggleTenant: () => void;
-  refreshTenants: () => Promise<void>;
 }
 
 const TenantContext = createContext<TenantContextProps | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: React.ReactNode }) {
-  const [tenants, setTenants] = useState<TenantData[]>([]);
-  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const [tenantInfo, setTenantInfo] = useState<TenantData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // Função Sênior para buscar os dados reais do Python
-  const fetchTenants = async () => {
-    try {
-      // Bloqueio de Segurança: Se não tem token (ex: na tela de login), não bate na API.
-      // Injetamos um placeholder para garantir que o React renderize as telas públicas.
-      if (typeof window !== "undefined" && !localStorage.getItem("orion_token")) {
-        setTenants([{ 
-            id: -2, name: "Aguardando Autenticação", social_handle: "login_required", 
-            niche: "Sistema", initials: "🔒", personas: [], competitors: [] 
-        }]);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      const data = await OrionAPI.getTenants();
-      
-      if (data && data.length > 0) {
-        // SUCESSO ABSOLUTO: O Banco tem clientes reais. Formata e exibe.
-        const formattedTenants = data.map((t: any) => ({
-          ...t,
-          initials: t.name ? t.name.substring(0, 2).toUpperCase() : "CL",
-          personas: t.personas ? (typeof t.personas === 'string' ? t.personas.split(',') : t.personas) : ["Público Geral"], 
-          competitors: t.competitors ? (typeof t.competitors === 'string' ? t.competitors.split(',') : t.competitors) : ["Concorrente Não Definido"]
-        }));
-        setTenants(formattedTenants);
-        
-        // Garante que o índice não estoure se um cliente for apagado
-        if (activeIndex >= formattedTenants.length) setActiveIndex(0);
-      } else {
-        // ESTADO ZERO: A API funcionou, mas o usuário não tem nenhum cliente cadastrado ainda.
-        // Carregamos um "Cliente Fantasma" para o frontend não quebrar com null pointers.
-        setTenants([{ 
-          id: 0, 
-          name: "Nenhum Cliente Cadastrado", 
-          social_handle: "cadastre_agora", 
-          niche: "Aguardando Setup", 
-          initials: "00", 
-          personas: [], 
-          competitors: [] 
-        }]);
-        setActiveIndex(0);
-      }
-    } catch (error) {
-      console.error("[Orion Core] Falha ao sincronizar Tenants.", error);
-      // CAIU A INTERNET OU SERVIDOR: Carrega um aviso claro, não o Mock antigo.
-      setTenants([{ 
-        id: -1, 
-        name: "Erro de Conexão", 
-        social_handle: "offline", 
-        niche: "Servidor Indisponível", 
-        initials: "ER", 
-        personas: [], 
-        competitors: [] 
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Roda uma vez quando o sistema abre
   useEffect(() => {
-    fetchTenants();
-  }, []);
-
-  // Função para rodar a lista de clientes com o botão "Trocar"
-  const toggleTenant = () => {
-    if (tenants.length > 1) {
-      setActiveIndex((prev) => (prev + 1) % tenants.length);
+    // Evita bloqueios na tela de login
+    if (pathname === "/" || pathname === "/login") {
+      setIsLoading(false);
+      return;
     }
-  };
 
-  const tenantInfo = tenants.length > 0 ? tenants[activeIndex] : null;
+    const token = localStorage.getItem("orion_token");
+    if (!token) {
+      router.replace("/");
+      return;
+    }
+
+    // Injeta o cliente "VRTICE" na memória simulando o tempo de resposta da API
+    setTimeout(() => {
+      setTenantInfo({
+        id: 1,
+        name: "VRTICE Enterprise",
+        initials: "VR",
+        social_handle: "@vrtice.agency",
+        niche: "Growth & Intelligence OS"
+      });
+      setIsLoading(false);
+    }, 500);
+
+  }, [pathname, router]);
 
   return (
-    <TenantContext.Provider value={{ 
-      tenants, 
-      tenantInfo, 
-      isLoading, 
-      toggleTenant,
-      refreshTenants: fetchTenants 
-    }}>
-      {/* A Renderização Segura: 
-        Só bloqueia a tela se estiver buscando os dados inicialmente. 
-        Uma vez resolvido (mesmo com o Zero-State), a aplicação é liberada.
-      */}
+    <TenantContext.Provider value={{ tenantInfo, isLoading }}>
       {isLoading ? (
-        <div className="w-full h-screen flex items-center justify-center bg-[#050505] text-[#D4AF37] animate-pulse font-montserrat text-xs tracking-[0.2em] uppercase">
+        <div className="w-screen h-screen flex flex-col items-center justify-center bg-[#020202] text-[#d4af37] font-mono text-[10px] tracking-[0.3em] uppercase">
+          <div className="w-16 h-16 border border-[#d4af37]/30 rounded-full border-t-[#d4af37] animate-spin mb-6 shadow-[0_0_15px_rgba(212,175,55,0.2)]"></div>
           Sincronizando Motor Lógico...
         </div>
-      ) : tenantInfo ? children : null}
+      ) : (
+        children
+      )}
     </TenantContext.Provider>
   );
 }
 
 export function useTenant() {
   const context = useContext(TenantContext);
-  if (!context) {
-    throw new Error("useTenant deve ser usado dentro de um TenantProvider");
-  }
+  if (!context) throw new Error("useTenant deve ser usado dentro de um TenantProvider");
   return context;
 }

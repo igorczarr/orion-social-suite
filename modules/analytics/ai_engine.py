@@ -2,6 +2,9 @@
 import os
 import json
 import google.generativeai as genai
+# 🚀 INJEÇÃO MULTI-AGENT: Imports das novas IAs
+from openai import OpenAI
+from groq import Groq
 
 class _ModelAdapter:
     """
@@ -16,18 +19,92 @@ class _ModelAdapter:
 
 
 class AIEngine:
-    def __init__(self, api_key: str):
-        if not api_key or not api_key.startswith("AIza"):
-            print("⚠️ Aviso: Chave do Gemini inválida ou não configurada.")
+    def __init__(self, api_key: str = None):
+        # 🚀 LOAD BALANCING: Carrega a Mesa Redonda de Chaves Gemini
+        self.gemini_keys = {
+            "cmo": api_key or os.getenv("GEMINI_KEY_CMO"),
+            "sociologo": os.getenv("GEMINI_KEY_SOCIOLOGO"),
+            "espiao": os.getenv("GEMINI_KEY_ESPIAO"),
+            "trends": os.getenv("GEMINI_KEY_TRENDS"),
+            "copy": os.getenv("GEMINI_KEY_COPY")
+        }
+        
+        # A Chave Mestra é a do CMO (Fallback)
+        self.master_key = self.gemini_keys["cmo"]
+
+        self.openai_key = os.getenv("OPENAI_API_KEY")
+        self.groq_key = os.getenv("GROQ_API_KEY")
+
+        if not self.master_key:
+            print("⚠️ Aviso: GEMINI_KEY_CMO não encontrada. O Córtex Central falhará.")
             
-        # Inicialização Sênior: Usando o configure padrão do SDK estável
-        genai.configure(api_key=api_key)
+        # 🚀 INJEÇÃO MULTI-AGENT: Inicialização dos novos clientes (se as chaves existirem)
+        self.openai_client = OpenAI(api_key=self.openai_key) if self.openai_key else None
+        self.groq_client = Groq(api_key=self.groq_key) if self.groq_key else None
         
         self.model_id = 'gemini-2.5-flash' # Excelente escolha de modelo
         self.pro_model_id = 'gemini-2.5-pro' # Textos muito densos (Dossiê)
         
+        # Configuração inicial com a chave mestra
+        if self.master_key:
+            genai.configure(api_key=self.master_key)
+            
         # A PONTE PARA OS WORKERS NÃO CRASCHAREM
         self.model = _ModelAdapter(None, self.model_id)
+
+    def _equip_key(self, role: str):
+        """🚀 LOAD BALANCING: Troca a chave do Gemini em tempo de execução para evitar limites de rate."""
+        key_to_use = self.gemini_keys.get(role) or self.master_key
+        if key_to_use:
+            genai.configure(api_key=key_to_use)
+
+    # =========================================================================
+    # 🚀 ROTEADOR UNIVERSAL (MULTI-AGENT ROUTING)
+    # =========================================================================
+    def generate(self, prompt: str, provider: str = "gemini", model: str = None, system_instruction: str = None, role: str = "cmo") -> str:
+        """
+        O Roteador Mestre. Novos módulos do Orion devem chamar esta função.
+        Permite escolher qual IA (funcionário) vai executar a tarefa.
+        """
+        # 1. ROTA GROQ (O Lixeiro/Operário Rápido)
+        if provider == "groq" and self.groq_client:
+            messages = []
+            if system_instruction:
+                messages.append({"role": "system", "content": system_instruction})
+            messages.append({"role": "user", "content": prompt})
+            
+            completion = self.groq_client.chat.completions.create(
+                model=model or "llama3-8b-8192",
+                messages=messages,
+                temperature=0.2 # Baixa temp para limpeza de dados precisos
+            )
+            return completion.choices[0].message.content
+
+        # 2. ROTA OPENAI (O Cérebro Lógico / GPT-4o)
+        elif provider == "openai" and self.openai_client:
+            messages = []
+            if system_instruction:
+                messages.append({"role": "system", "content": system_instruction})
+            messages.append({"role": "user", "content": prompt})
+            
+            response = self.openai_client.chat.completions.create(
+                model=model or "gpt-4o-mini",
+                messages=messages,
+                temperature=0.4
+            )
+            return response.choices[0].message.content
+
+        # 3. ROTA GEMINI (O Analista de Contexto Largo - Fallback Padrão)
+        else:
+            self._equip_key(role) # Equipa a chave correta baseada no departamento
+            model_name = model or self.model_id
+            if system_instruction:
+                gm = genai.GenerativeModel(model_name, system_instruction=system_instruction)
+            else:
+                gm = genai.GenerativeModel(model_name)
+                
+            response = gm.generate_content(prompt)
+            return response.text
 
     # =========================================================================
     # V1.0 & V2.0 - MÉTODOS ORIGINAIS CONSERVADOS (INTACTOS)
@@ -52,6 +129,7 @@ class AIEngine:
         """
 
     def generate_internal_audit(self, profile_data: dict, recent_posts: list) -> str:
+        self._equip_key("cmo") # 🚀 CHAVE: CMO
         prompt = f"""
         DADOS INTERNOS DA CONTA E NICHO:
         {json.dumps(profile_data, indent=2, ensure_ascii=False)}
@@ -62,6 +140,7 @@ class AIEngine:
         return self._call_ai(prompt, profile_data, skill="Auditoria Interna")
 
     def generate_competitive_intelligence(self, internal_data: dict, competitors_data: list) -> str:
+        self._equip_key("espiao") # 🚀 CHAVE: ESPIÃO
         prompt = f"""
         DADOS DE INTELIGÊNCIA INTERNA (@{internal_data.get('username')}):
         {json.dumps(internal_data, indent=2, ensure_ascii=False)}
@@ -72,6 +151,7 @@ class AIEngine:
         return self._call_ai(prompt, internal_data, skill="Inteligência Competitiva")
 
     def analyze_trends_and_timings(self, trending_topics: list, profile_context: dict) -> str:
+        self._equip_key("trends") # 🚀 CHAVE: TRENDS
         prompt = f"""
         FLUXO DE DADOS GLOBAIS: {json.dumps(trending_topics, indent=2, ensure_ascii=False)}
         SUA MISSÃO É O TREND HIJACKING APLICADO AO NICHO DE '{profile_context.get('niche')}'.
@@ -79,6 +159,7 @@ class AIEngine:
         return self._call_ai(prompt, profile_context, skill="Trend Ranking & Hijacking")
 
     def strategic_intervention(self, historical_growth: list, profile_context: dict) -> str:
+        self._equip_key("cmo") # 🚀 CHAVE: CMO
         prompt = f"""
         SÉRIE TEMPORAL DE CRESCIMENTO: {json.dumps(historical_growth, indent=2, ensure_ascii=False)}
         APLIQUE METODOLOGIA DE GROWTH HACKING E FUNIL AARRR...
@@ -86,6 +167,7 @@ class AIEngine:
         return self._call_ai(prompt, profile_context, skill="Intervenção Estratégica")
 
     def generate_briefing(self, trend_topic: str, competitor: str) -> dict:
+        self._equip_key("cmo") # 🚀 CHAVE: CMO
         prompt = f"""
         Crie um briefing tático cirúrgico baseado no tópico em alta '{trend_topic}'.
         Alvo Competitivo a ser enfraquecido: {competitor}.
@@ -115,6 +197,7 @@ class AIEngine:
             return f"❌ Erro crítico no córtex frontal (IA): {e}"
 
     def generate_cmo_dossier(self, data: dict) -> str:
+        self._equip_key("cmo") # 🚀 CHAVE: CMO
         prompt = f"Você é o Head de Estratégia do ORION. Redija um Equity Research Report...\n{json.dumps(data)}"
         try:
             pro_model = genai.GenerativeModel(
@@ -127,6 +210,7 @@ class AIEngine:
             return f"Erro ao gerar Dossiê CMO. Motivo: {str(e)}"
 
     def execute_sociologist_profiling(self, niche: str, raw_comments: list) -> dict:
+        self._equip_key("sociologo") # 🚀 CHAVE: SOCIÓLOGO
         prompt = f"Você é um Analista... \n{json.dumps(raw_comments, ensure_ascii=False)}"
         try:
             sociologist_model = genai.GenerativeModel(
@@ -140,6 +224,7 @@ class AIEngine:
             return None
 
     def execute_spy_ooda_loop(self, competitor_name: str, campaign_text: str, format_type: str) -> dict:
+        self._equip_key("espiao") # 🚀 CHAVE: ESPIÃO
         prompt = f"Operativo de Inteligência... \nAlvo: {competitor_name}\nTexto: {campaign_text}\nFormato: {format_type}"
         try:
             spy_model = genai.GenerativeModel(
@@ -156,12 +241,11 @@ class AIEngine:
     # 🚀 V3.0 GROWTH OS - MULTI-AGENT JSON ARCHITECTURE (OS 6 PILARES)
     # =========================================================================
     
-    def _call_json_agent(self, prompt: str, system_instruction: str, temperature: float = 0.4) -> dict:
+    def _call_json_agent(self, prompt: str, system_instruction: str, role: str = "cmo", temperature: float = 0.4) -> dict:
         """
-        [SÊNIOR] Motor Base de Output Estruturado.
-        Força a API do Gemini a devolver estritamente um JSON parseável (sem markdown),
-        garantindo que o Frontend React não sofra quebras de renderização.
+        [SÊNIOR] Motor Base de Output Estruturado com Load Balancing.
         """
+        self._equip_key(role) # 🚀 CHAVE DINÂMICA
         try:
             agent = genai.GenerativeModel(
                 model_name=self.model_id,
@@ -171,7 +255,7 @@ class AIEngine:
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=temperature,
-                    response_mime_type="application/json", # O segredo do SDK moderno
+                    response_mime_type="application/json", 
                 )
             )
             return json.loads(response.text)
@@ -180,10 +264,6 @@ class AIEngine:
             return {}
 
     def run_pillar1_anthropologist(self, niche: str, data_lake: list) -> dict:
-        """
-        PILAR 1: O Antropólogo (Evolução da Persona).
-        Mapeia René Girard (Mimética), Sombra (Jung) e Léxico (N-Gram).
-        """
         sys_prompt = f"""Você é um Antropólogo de Consumo e Psicanalista de Massas operando no nicho de {niche}.
         Sua ciência: Teoria Mimética de René Girard (Mediador/Rival) e Psicanálise de Jung (A Sombra).
         Seu objetivo: Extrair o código-fonte da alma do consumidor."""
@@ -211,13 +291,9 @@ class AIEngine:
         }}
         """
         print("🧠 Ativando Pilar 1: O Antropólogo...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.3)
+        return self._call_json_agent(user_prompt, sys_prompt, role="sociologo", temperature=0.3)
 
     def run_pillar2_brand_architect(self, niche: str, anthropologist_data: dict, weak_spots: dict) -> dict:
-        """
-        PILAR 2: O Arquiteto de Branding.
-        Criação de Monopólio, Category Design (Al Ries) e Código Semiótico.
-        """
         sys_prompt = f"""Você é o Arquiteto de Brand Equity de um Fundo de Wall Street.
         Sua ciência: Category Design (Play Bigger), Arquétipos de Jung e Primal Branding (Patrick Hanlon).
         Seu objetivo: Destruir a concorrência tornando o cliente o único líder de uma nova categoria."""
@@ -246,13 +322,9 @@ class AIEngine:
         }}
         """
         print("🏛️ Ativando Pilar 2: O Arquiteto de Brand...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.5)
+        return self._call_json_agent(user_prompt, sys_prompt, role="cmo", temperature=0.5)
 
     def run_pillar3_business_auditor(self, competitor_name: str, ad_copy: str, landing_page_text: str) -> dict:
-        """
-        PILAR 3: O Auditor Corporativo (Espião).
-        Engenharia Reversa do Shadow Funnel e Cálculo de Equação de Hormozi.
-        """
         sys_prompt = """Você é um Due Diligence Auditor e Operativo de Inteligência de Mercado.
         Sua ciência: Equação de Valor de Alex Hormozi e Teoria das Restrições de Goldratt.
         Seu objetivo: Mapear onde o inimigo sangra dinheiro e como podemos roubar seu tráfego."""
@@ -281,13 +353,9 @@ class AIEngine:
         }}
         """
         print("🕵️‍♂️ Ativando Pilar 3: O Auditor Corporativo...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.2)
+        return self._call_json_agent(user_prompt, sys_prompt, role="espiao", temperature=0.2)
 
     def run_pillar4_oracle_alpha(self, raw_trends: list, market_context: str) -> dict:
-        """
-        PILAR 4: O Oráculo Preditivo.
-        Antecipação de Cisnes Negros e Arbitragem de Atenção.
-        """
         sys_prompt = """Você é um Quantitative Analyst e Caçador de Sinais Alpha.
         Sua ciência: Curva de Adoção de Rogers e Event-Driven Marketing.
         Seu objetivo: Fornecer Vantagem Desleal antecipando tendências que a massa ainda ignora."""
@@ -317,13 +385,9 @@ class AIEngine:
         }}
         """
         print("🔮 Ativando Pilar 4: O Oráculo Alpha...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.6)
+        return self._call_json_agent(user_prompt, sys_prompt, role="trends", temperature=0.6)
 
     def run_pillar5_showrunner(self, brand_book_json: dict, oracle_signals: dict) -> dict:
-        """
-        PILAR 5: O Showrunner (Sindicato de Mídia).
-        Teoria de Informação, Efeito Zeigarnik e Engenharia de Dopamina.
-        """
         sys_prompt = """Você é um Showrunner da Netflix misturado com Eng. de Redes Sociais.
         Sua ciência: Condicionamento Operante (B.F. Skinner) e Open Loops (Efeito Zeigarnik).
         Seu objetivo: Viciar a audiência em vez de apenas 'educar'."""
@@ -365,13 +429,9 @@ class AIEngine:
         }}
         """
         print("🎬 Ativando Pilar 5: O Showrunner...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.7)
+        return self._call_json_agent(user_prompt, sys_prompt, role="copy", temperature=0.7)
 
     def run_pillar6_alchemist_closer(self, target_product: dict, anthropologist_json: dict, brand_book_json: dict) -> dict:
-        """
-        PILAR 6: O Fechador (A Máquina de Vendas).
-        A inversão de risco, o Mecanismo Único e a Matriz de Objeções (Cialdini/Kahneman).
-        """
         sys_prompt = """Você é um Behavioral Economist e Direct Response Copywriter.
         Sua ciência: Prospect Theory (Kahneman), Cialdini (Pre-suasion) e Eugene Schwartz.
         Seu objetivo: Criar uma Arquitetura de Escolha onde dizer 'NÃO' pareça estúpido."""
@@ -401,6 +461,6 @@ class AIEngine:
         }}
         """
         print("💰 Ativando Pilar 6: O Alquimista de Conversão...")
-        return self._call_json_agent(user_prompt, sys_prompt, temperature=0.5)
+        return self._call_json_agent(user_prompt, sys_prompt, role="copy", temperature=0.5)
 
 # FIM DA CLASSE AI_ENGINE

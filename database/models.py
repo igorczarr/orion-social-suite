@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Float, UniqueConstraint, JSON
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, JSON, Boolean, func
 
 Base = declarative_base()
 
@@ -41,17 +42,23 @@ class Tenant(Base):
     
     encrypted_ig_session = Column(Text, nullable=True) # Cofre de Credenciais
     
-    # Relações Descendentes
+    # Relações Descendentes (Originais)
     owner = relationship("User", back_populates="tenants")
     personas = relationship("Persona", back_populates="tenant", cascade="all, delete")
     tracked_profiles = relationship("TrackedProfile", back_populates="tenant", cascade="all, delete")
     social_insights = relationship("SocialInsight", back_populates="tenant", cascade="all, delete")
     persona_dossiers = relationship("PersonaDossier", back_populates="tenant", cascade="all, delete")
-    
-    # FASE 4: Novos Relacionamentos do Growth OS
     brand_equity = relationship("BrandEquity", back_populates="tenant", uselist=False, cascade="all, delete")
     alpha_signals = relationship("AlphaSignal", back_populates="tenant", cascade="all, delete")
     syndicate_episodes = relationship("MediaSyndicate", back_populates="tenant", cascade="all, delete")
+    vortex_targets = relationship("VortexTarget", back_populates="tenant", cascade="all, delete")
+    
+    # 🚀 NOVAS RELAÇÕES DE INTELIGÊNCIA (Data Lake de Consultoria)
+    client_briefing = relationship("ClientBriefing", back_populates="tenant", uselist=False, cascade="all, delete")
+    web_traffic_intel = relationship("WebTrafficIntel", back_populates="tenant", cascade="all, delete")
+    swipe_files = relationship("SwipeFile", back_populates="tenant", cascade="all, delete")
+    ai_reports = relationship("AIExecutionLog", back_populates="tenant", cascade="all, delete")
+
 
 class Persona(Base):
     """Segmentação Macro (Desativada aos poucos em favor do BrandEquity)"""
@@ -97,9 +104,7 @@ class BrandEquity(Base):
     tenant = relationship("Tenant", back_populates="brand_equity")
 
 class PersonaDossier(Base):
-    """
-    A Síntese Comportamental (JTBD e Níveis de Consciência de Eugene Schwartz).
-    """
+    """A Síntese Comportamental (JTBD e Níveis de Consciência de Eugene Schwartz)."""
     __tablename__ = 'persona_dossiers'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -153,10 +158,7 @@ class CompetitorAd(Base):
     tracked_profile = relationship("TrackedProfile", back_populates="ads")
 
 class CompetitorWarRoom(Base):
-    """
-    O Auditor de Vulnerabilidade Corporativa (Pilar 3 Extremo).
-    Mapeia a Matriz ERRC e a Engenharia Reversa do Funil do inimigo.
-    """
+    """O Auditor de Vulnerabilidade Corporativa (Pilar 3 Extremo)."""
     __tablename__ = 'competitor_war_room'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -166,11 +168,9 @@ class CompetitorWarRoom(Base):
     detected_hook = Column(Text)
     cialdini_trigger = Column(String)
     
-    # Matriz Oceano Azul
     market_gap = Column(Text) # A Fricção que o inimigo gera
     counter_strategy = Column(Text) # Instrução de ataque gerada pela IA
     
-    # NOVO: O Shadow Funnel (Auditoria de Negócio)
     core_offer = Column(String, nullable=True) # O que eles realmente vendem no back-end
     estimated_upsell = Column(String, nullable=True)
     vulnerability_score = Column(Integer, default=50) # 0-100 (Risco de Fadiga do inimigo)
@@ -198,10 +198,7 @@ class SocialInsight(Base):
     tenant = relationship("Tenant", back_populates="social_insights")
 
 class AlphaSignal(Base):
-    """
-    O Oráculo (Pilar 4): Tendências Preditivas de Alternative Data (SerpApi/Reddit).
-    O que vai explodir antes de chegar ao mainstream.
-    """
+    """O Oráculo (Pilar 4): Tendências Preditivas de Alternative Data (SerpApi/Reddit)."""
     __tablename__ = "alpha_signals"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -233,9 +230,7 @@ class AuthorityProof(Base):
 # =====================================================================
 
 class MediaSyndicate(Base):
-    """
-    Kanban de Retenção: Agenda narrativa do cliente baseada em Dopamina/Ocitocina/Serotonina.
-    """
+    """Kanban de Retenção: Agenda narrativa do cliente baseada em Dopamina/Ocitocina/Serotonina."""
     __tablename__ = 'media_syndicate'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -314,4 +309,281 @@ class VortexTarget(Base):
     status = Column(String, default="pending", index=True) 
     created_at = Column(DateTime, default=datetime.now)
     
-    tenant = relationship("Tenant", backref="vortex_targets")
+    tenant = relationship("Tenant", back_populates="vortex_targets")
+
+class TrendInsight(Base):
+    """Armazena as tendências efêmeras do Google Trends e X."""
+    __tablename__ = 'trend_insights'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=False)
+    topic = Column(String, nullable=False)
+    category = Column(String)
+    heat = Column(String)
+    source_url = Column(String)
+    created_at = Column(DateTime, default=datetime.now)
+
+# =====================================================================
+# MÓDULO 7: GESTÃO ESTRATÉGICA E INTELIGÊNCIA APLICADA (As Novas Fundações)
+# =====================================================================
+
+class ClientBriefing(Base):
+    """
+    A GÊNESIS DO PROJETO.
+    Armazena o formulário inicial do cliente para balizar todos os Agentes de IA.
+    """
+    __tablename__ = 'client_briefings'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), unique=True, nullable=False)
+    
+    business_goal = Column(Text)            # Ex: "Escalar a mentoria para R$ 100k/mês"
+    target_audience_raw = Column(Text)      # O que o cliente ACHA que é a persona
+    current_challenges = Column(Text)       # Ex: "CPA muito alto, ninguém engaja"
+    product_ecosystem = Column(JSON)        # Tabela de produtos (Isca, Core, High-Ticket)
+    unique_value_proposition_raw = Column(Text)
+    
+    raw_form_data = Column(JSON)            # Backup completo do formulário enviado
+    
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant", back_populates="client_briefing")
+
+class WebTrafficIntel(Base):
+    """
+    O RASTREADOR DE TRÁFEGO E VSLs.
+    Captura transcrições de páginas de vendas e ranqueamento de SEO dos concorrentes.
+    """
+    __tablename__ = 'web_traffic_intel'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=False)
+    
+    competitor_url = Column(String, nullable=False, index=True)
+    monthly_visits_estimate = Column(Integer, default=0)
+    top_keywords = Column(JSON)             # Palavras-chave que levam tráfego para lá
+    
+    vsl_transcript = Column(Text)           # A transcrição integral do Vídeo de Vendas inimigo
+    sales_page_copy = Column(Text)          # Texto capturado da Landing Page
+    
+    captured_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant", back_populates="web_traffic_intel")
+
+class SwipeFile(Base):
+    """
+    A BIBLIOTECA DE OURO (O Cérebro de Referências).
+    Guarda as estruturas virais (Hooks, Ofertas, LSLs, Funis) para modelagem preditiva.
+    """
+    __tablename__ = 'swipe_files'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=False)
+    
+    category = Column(String, nullable=False, index=True) # 'Hook', 'VSL', 'Offer', 'Funnel', 'Ad Creative'
+    content = Column(Text, nullable=False)                # O script, texto ou estrutura
+    source_url = Column(String)                           # De onde roubamos a ideia
+    
+    performance_score = Column(Integer, default=0)        # Pontuação 0-100 baseada no backtesting
+    ai_breakdown = Column(JSON)                           # Ex: {"gatilho": "Escassez", "emocao": "Aversão à perda"}
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant", back_populates="swipe_files")
+
+class AIExecutionLog(Base):
+    """
+    O DIÁRIO DE BORDO DA IA (Trackrecord).
+    Salva permanentemente todos os dossiês, auditorias e relatórios estratégicos gerados.
+    Permite consultar decisões passadas e provar o valor do Orion.
+    """
+    __tablename__ = 'ai_execution_logs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=False)
+    
+    report_type = Column(String, nullable=False, index=True) # Ex: 'CMO_Dossier', 'ERRC_Matrix', 'Kill_Shot_Protocol'
+    content_md = Column(Text, nullable=False)                # O output gerado pela IA (Markdown/JSON em string)
+    parameters_used = Column(JSON)                           # O que foi enviado para a IA para gerar este relatório
+    
+    generated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    tenant = relationship("Tenant", back_populates="ai_reports")
+
+# =====================================================================
+# MÓDULO 8: O GRAFO DE CONHECIMENTO (SWIPE FILE MULTIDIMENSIONAL)
+# =====================================================================
+
+class SwipeSource(Base):
+    """
+    A FONTE DA INTELIGÊNCIA.
+    Ex: "Agora Financial", "Swiped.co", "CXL", "Reddit /r/copywriting".
+    Permite à IA ponderar a autoridade da informação.
+    """
+    __tablename__ = 'swipe_sources'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, unique=True, nullable=False)
+    category = Column(String, nullable=False) # 'Titan', 'Museum', 'Newsletter', 'CRO_Science', 'Trench'
+    market = Column(String) # 'BR', 'US', 'Global'
+    authority_score = Column(Integer, default=50) # Peso de 0 a 100 na hora de a IA escolher quem modelar
+    
+    assets = relationship("SwipeAsset", back_populates="source", cascade="all, delete")
+    tactics = relationship("TacticalIntel", back_populates="source", cascade="all, delete")
+
+class SwipeAsset(Base):
+    """
+    A MATÉRIA-PRIMA.
+    A peça de conteúdo purificada (A VSL, o E-mail, a Landing Page).
+    """
+    __tablename__ = 'swipe_assets'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(Integer, ForeignKey('swipe_sources.id'), nullable=False)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=True) # Null = Arquivo Global do Órion. Preenchido = Salvo por um cliente específico.
+    
+    asset_type = Column(String, index=True) # 'Long-Form VSL', 'Email Sequence', 'Ad Copy', 'Advertorial'
+    title_or_hook = Column(Text, nullable=False)
+    clean_content = Column(Text, nullable=False) # O texto Markdown limpo
+    original_url = Column(String)
+    
+    extracted_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    source = relationship("SwipeSource", back_populates="assets")
+    autopsy = relationship("CognitiveAutopsy", back_populates="asset", uselist=False, cascade="all, delete")
+    cro_heuristics = relationship("CROHeuristic", back_populates="asset", cascade="all, delete")
+
+class CognitiveAutopsy(Base):
+    """
+    A ENGENHARIA REVERSA (O Porquê funciona).
+    É aqui que o nosso 'cognitive_parser.py' brilha. Ele preenche isto via IA.
+    """
+    __tablename__ = 'cognitive_autopsies'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, ForeignKey('swipe_assets.id'), unique=True, nullable=False)
+    
+    awareness_level = Column(String) # Ex: "Unaware", "Problem Aware" (Eugene Schwartz)
+    core_emotion = Column(String) # Ex: "Ganância", "Medo de Ficar de Fora (FOMO)", "Injustiça"
+    big_idea = Column(Text) # A tese central da copy resumida numa frase
+    structural_framework = Column(String) # Ex: "PAS (Problem-Agitate-Solve)", "Hero's Journey"
+    psychological_triggers = Column(JSON) # Array: ["Prova Social", "Urgência Oculta", "Autoridade"]
+    
+    asset = relationship("SwipeAsset", back_populates="autopsy")
+
+class CROHeuristic(Base):
+    """
+    A CIÊNCIA DA CONVERSÃO (O Cótex Científico).
+    Regras de UX e Design extraídas da CXL e Nielsen Norman.
+    """
+    __tablename__ = 'cro_heuristics'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    asset_id = Column(Integer, ForeignKey('swipe_assets.id'), nullable=True) # Pode estar ligado a um Swipe específico ou ser uma regra geral
+    
+    rule_name = Column(String, nullable=False) # Ex: "Redução de Fricção Cognitiva no Checkout"
+    friction_type = Column(String) # Ex: "Carga Visual", "Ansiedade de Preço"
+    actionable_insight = Column(Text) # Ex: "Colocar o selo de garantia a menos de 50px do botão de CTA aumenta a conversão em 14%."
+    
+    asset = relationship("SwipeAsset", back_populates="cro_heuristics")
+
+class TacticalIntel(Base):
+    """
+    HACKS E TENDÊNCIAS EFÊMERAS (As Trincheiras).
+    Extraído do Reddit e Cult of Copy. O que está a funcionar HOJE, mas pode parar amanhã.
+    """
+    __tablename__ = 'tactical_intel'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_id = Column(Integer, ForeignKey('swipe_sources.id'), nullable=False)
+    
+    trend_name = Column(String, nullable=False) # Ex: "Uso de Imagens Lo-Fi em Ads B2B"
+    market_pulse = Column(String) # 'Emergente', 'Saturando', 'Morto'
+    actionable_hack = Column(Text) # O passo a passo da tática
+    discovered_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    
+    source = relationship("SwipeSource", back_populates="tactics")
+
+# =====================================================================
+# MÓDULO 9: O COFRE DE IDENTIDADE (BRAND LOCK & ESTRATÉGIA)
+# =====================================================================
+
+class BrandDossier(Base):
+    """
+    O Dossiê Inquebrável da Marca.
+    Gerado uma única vez (ou atualizado semestralmente) pelo motor Brand Lock.
+    É a Bíblia que a IA consultará antes de escrever qualquer Copy.
+    """
+    __tablename__ = 'brand_dossiers'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), unique=True, nullable=False)
+    
+    # MOTOR 1: O Doxxing Psicológico
+    persona_profile = Column(JSON, nullable=False) 
+    
+    # MOTOR 2: A Engenharia de Culto
+    cult_branding = Column(JSON, nullable=False) 
+    
+    # MOTOR 3: A Matriz de Oceano Azul
+    errc_matrix = Column(JSON, nullable=False) 
+    
+    generated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
+
+    tenant = relationship("Tenant", backref="brand_dossier")
+
+# =====================================================================
+# MÓDULO 10: MEMÓRIA DE LONGO PRAZO E TELEMETRIA AUTÓNOMA
+# =====================================================================
+
+class CopyGenerationLog(Base):
+    """
+    O Diário de Bordo Autónomo do Copy Chief.
+    Cruza o que a IA gerou com o que a Apify provou que funcionou no mundo real.
+    """
+    __tablename__ = 'copy_generation_logs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey('tenants.id', ondelete="CASCADE"), nullable=False)
+    
+    asset_type = Column(String, index=True, nullable=False) # 'vsl', 'hook', 'email_sequence', 'meta_ad'
+    briefing = Column(Text)
+    generated_copy = Column(Text, nullable=False)
+    ai_reasoning = Column(Text)
+    
+    # --- O CIRCUITO DE FEEDBACK HUMANO ---
+    client_score = Column(Integer, nullable=True) # Nota manual do cliente (0 a 100)
+    client_feedback = Column(Text, nullable=True)
+    
+    # --- O CIRCUITO DE TELEMETRIA AUTÓNOMA (A Vossa Adição de Mestre) ---
+    external_tracking_url = Column(String, nullable=True, unique=True) # A URL real do Post/Ad no mundo
+    apify_days_active = Column(Integer, default=0) # Para Ads: Dias que sobreviveu sem o cliente desligar
+    apify_engagement = Column(Integer, default=0) # Para Posts: Soma de Likes/Comments
+    autonomous_score = Column(Integer, nullable=True) # A Nota Real Calculada pela Máquina (0 a 100)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    last_telemetry_sync = Column(DateTime(timezone=True), nullable=True) # Quando a Apify leu pela última vez
+# ==============================================================================
+# GAMIFICAÇÃO E GESTÃO DE MISSÕES (Módulo de Produtividade)
+# ==============================================================================
+
+class Quest(Base):
+    """
+    Missões diárias/semanais atribuídas aos membros da equipa (Gamification).
+    """
+    __tablename__ = "quests"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(Integer, primary_key=True, index=True)
+    assigned_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    
+    task_description = Column(String(500), nullable=False)
+    xp_reward = Column(Integer, default=10)
+    is_completed = Column(Boolean, default=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relacionamento com o utilizador
+    user = relationship("User", backref="quests")

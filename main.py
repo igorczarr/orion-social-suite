@@ -18,9 +18,11 @@ import asyncio
 import threading
 import feedparser
 import re
+import uuid # 🚀 INJEÇÃO FASE C: Gerador de Tickets (Task IDs)
+import json # 🚀 INJEÇÃO FASE C: Serializador de resultados da fila
 from dotenv import load_dotenv
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Dict, Any
 from collections import defaultdict
 from contextlib import asynccontextmanager
 
@@ -29,8 +31,12 @@ from database.connection import SessionLocal, init_db, engine
 from database.models import (
     User, Tenant, Persona, TrackedProfile, SocialInsight, 
     CompetitorAd, ProfileHistory, PostSnapshot, Post, 
-    Quest, VortexTarget, TrendInsight, AuthorityProof
+    Quest, VortexTarget, TrendInsight, AuthorityProof, ClientBriefing # 🚀 INJEÇÃO: ClientBriefing adicionado
 )
+
+# 🚀 INJEÇÃO: Imports do Módulo Copy Chief
+from modules.generation.copy_chief.chief_orchestrator import CopyChiefOrchestrator
+from modules.generation.copy_chief.memory_cortex import MemoryCortex
 
 load_dotenv() # Carrega o arquivo .env
 
@@ -64,7 +70,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# 🛡️ FASE 1, 4 e 5: Inicialização com Auto-Patcher (Self-Healing Schema)
+# 🛡️ FASE 1, 4, 5 e C (Assíncrono): Inicialização com Auto-Patcher (Self-Healing Schema)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Inicializando aplicação Orion (Elite Mode)...")
@@ -100,6 +106,26 @@ async def lifespan(app: FastAPI):
                 conn.rollback() # Limpa a transação rompida e segue a vida silenciosamente
                 pass
                 
+            # 3. 🚀 INJEÇÃO FASE C: Tenta criar a tabela de Filas Assíncronas
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS async_tasks (
+                        id VARCHAR PRIMARY KEY,
+                        tenant_id INTEGER,
+                        task_type VARCHAR,
+                        status VARCHAR DEFAULT 'pending',
+                        result_data TEXT,
+                        error_message TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+                conn.commit()
+                print("✅ [PATCH APLICADO] Tabela de filas 'async_tasks' pronta. Motor Assíncrono ativado.")
+            except Exception as e:
+                conn.rollback()
+                print(f"⚠️ Aviso na tabela async_tasks: {e}")
+                pass
+
         print("🛡️ Banco de Dados validado e 100% atualizado para a versão mais recente.")
     except Exception as e:
         print(f"⚠️ Aviso no Auto-Patch (Pode ser ignorado se o sistema rodar): {e}")
@@ -139,7 +165,8 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://orion-social-suite.vercel.app",
-    "https://orion.vrtice.com.br"
+    "https://orion.vrtice.com.br",
+    "*" # 🚀 INJEÇÃO: Wildcard para aceitar chamadas do Github Pages/HTML externo
 ]
 
 app.add_middleware(
@@ -225,6 +252,37 @@ class VortexActionRequest(BaseModel):
 class VortexAuthRequest(BaseModel):
     session_cookie: str
 
+# 🚀 INJEÇÃO: Schemas para o Módulo Copy Chief
+class CopyGenerationRequest(BaseModel):
+    request_type: str
+    brief: str
+    parameters: Optional[Dict[str, Any]] = {}
+
+class CopyTrackingRequest(BaseModel):
+    external_url: str
+
+class TacticalGenerateRequest(BaseModel):
+    source_type: str # 'trend', 'proof' ou 'insight'
+    content: str
+
+# 🚀 INJEÇÃO: Schema para o Formulário Git Externo
+class ExternalBriefingSubmit(BaseModel):
+    Nome: str
+    WhatsApp: str
+    Email: str
+    Profissao: str
+    Instagram: str
+    Q01_Servico_Principal: str = Field(alias="01_Servico_Principal")
+    Q02_Origem_Clientes: str = Field(alias="02_Origem_Clientes")
+    Q03_Estrutura_Atual: str = Field(alias="03_Estrutura_Atual")
+    Q04_Gargalo: str = Field(alias="04_Gargalo")
+    Q05_Tempo_Gasto: str = Field(alias="05_Tempo_Gasto")
+    Q06_Operacao_Atual: str = Field(alias="06_Operacao_Atual")
+    Q07_Cenario_Ideal: str = Field(alias="07_Cenario_Ideal")
+    Q08_Tomada_Decisao: str = Field(alias="08_Tomada_Decisao")
+    Q09_Faturamento: str = Field(alias="09_Faturamento")
+    Q10_Disponibilidade_Investimento: str = Field(alias="10_Disponibilidade_Investimento")
+
 # --- ROTAS DA API ---
 
 @app.get("/api/scout/status")
@@ -257,6 +315,59 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     except Exception as e:
         print(f"--- 💥 ERRO CRÍTICO NO LOGIN: {str(e)} ---")
         raise HTTPException(status_code=500, detail="Erro interno no servidor")
+
+# =====================================================================
+# 🚀 ROTA PÚBLICA DE INTEGRAÇÃO COM O FORMULÁRIO GIT
+# =====================================================================
+@app.post("/api/strategy/briefing/submit")
+def receive_external_briefing(
+    payload: ExternalBriefingSubmit,
+    db: Session = Depends(get_db)
+):
+    """
+    Ponto de Entrada do Formulário Externo. 
+    Lê o JSON, cria o Tenant e armazena o ClientBriefing para a IA usar depois.
+    """
+    try:
+        # 1. Define um owner padrão (O Admin principal da agência)
+        admin = db.query(User).first()
+        owner_id = admin.id if admin else 1
+
+        # 2. Cria o Tenant (O novo Cliente)
+        clean_ig = clean_db_username(payload.Instagram)
+        new_tenant = Tenant(
+            owner_id=owner_id,
+            name=payload.Nome,
+            social_handle=clean_ig,
+            niche=payload.Profissao,
+            keywords=payload.Q01_Servico_Principal[:50] # Fragmento base
+        )
+        db.add(new_tenant)
+        db.flush() # Dá o ID do tenant imediatamente
+
+        # 3. Cria a Bússola Tática (ClientBriefing)
+        new_briefing = ClientBriefing(
+            tenant_id=new_tenant.id,
+            product_name=payload.Profissao,
+            product_description=f"Serviço Principal: {payload.Q01_Servico_Principal}",
+            target_audience=payload.Q04_Gargalo, # Mapeamento provisório das dores
+            main_pain_points=[payload.Q04_Gargalo, payload.Q05_Tempo_Gasto],
+            unique_selling_point=payload.Q07_Cenario_Ideal
+        )
+        db.add(new_briefing)
+        
+        # 4. Adiciona ao Radar de Raspagem
+        db.add(TrackedProfile(tenant_id=new_tenant.id, username=clean_ig, niche=payload.Profissao, is_client_account=True))
+
+        db.commit()
+        print(f"🎯 [ONBOARDING] Novo briefing recebido de {payload.Nome}. Tenant ID: {new_tenant.id} forjado na base.")
+
+        return {"status": "success", "message": "Briefing absorvido com sucesso pelo Córtex Orion."}
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ [ERRO ONBOARDING] Falha ao processar briefing externo: {e}")
+        raise HTTPException(status_code=500, detail="Falha ao processar e salvar os dados do mapeamento.")
 
 # --- ROTAS DO NOVO COFRE (MULTI-TENANT) ---
 
@@ -1204,11 +1315,6 @@ def generate_full_report(tenant_id: int, db: Session = Depends(get_db), current_
         "content_md": dossier_markdown
     }
 
-# Schema para a nova rota
-class TacticalGenerateRequest(BaseModel):
-    source_type: str # 'trend', 'proof' ou 'insight'
-    content: str
-
 @app.post("/api/ai/generate-tactical-copy/{tenant_id}")
 async def generate_tactical_copy(
     tenant_id: int, 
@@ -1260,3 +1366,137 @@ async def generate_tactical_copy(
         return {"status": "success", "data": resposta_ia}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# =====================================================================
+# 🚀 COPY CHIEF (MÓDULO DE GERAÇÃO DE 8 DÍGITOS - MODO ASSÍNCRONO)
+# =====================================================================
+
+@app.post("/api/copy-chief/generate/{tenant_id}")
+def generate_copy_asset_async(
+    tenant_id: int,
+    req: CopyGenerationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Rota de Tiro Assíncrono. Não bloqueia o servidor.
+    Delega a missão pesada ao Copy Chief em Background e devolve um Ticket (Task ID).
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.owner_id == current_user.id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado.")
+
+    # 1. Gera o Ticket da Fila
+    task_id = str(uuid.uuid4())
+    
+    # 2. Registra a tarefa no banco como "pending"
+    try:
+        db.execute(
+            text("INSERT INTO async_tasks (id, tenant_id, task_type, status) VALUES (:id, :t_id, :type, 'pending')"),
+            {"id": task_id, "t_id": tenant.id, "type": req.request_type}
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao registrar tarefa na fila: {e}")
+
+    # 3. O TRABALHADOR DE FUNDO (Background Worker)
+    def process_copy_task(t_id: int, r_type: str, brief: str, params: dict, tsk_uuid: str):
+        db_bg = SessionLocal() # Nova sessão isolada para a thread em background para não fechar a conexão principal
+        try:
+            # Atualiza para 'processing'
+            db_bg.execute(text("UPDATE async_tasks SET status='processing' WHERE id=:id"), {"id": tsk_uuid})
+            db_bg.commit()
+
+            # Aciona o motor pesado (15 a 40 segundos)
+            chief = CopyChiefOrchestrator(db_session=db_bg)
+            result = chief.execute_request(
+                tenant_id=t_id,
+                request_type=r_type,
+                brief=brief,
+                parameters=params
+            )
+
+            # Salva o resultado
+            if result.get("status") == "success":
+                db_bg.execute(
+                    text("UPDATE async_tasks SET status='completed', result_data=:res WHERE id=:id"),
+                    {"res": json.dumps(result), "id": tsk_uuid}
+                )
+            else:
+                db_bg.execute(
+                    text("UPDATE async_tasks SET status='failed', error_message=:err WHERE id=:id"),
+                    {"err": result.get("message", "Erro fatal na geração."), "id": tsk_uuid}
+                )
+            db_bg.commit()
+            
+        except Exception as e:
+            db_bg.execute(
+                text("UPDATE async_tasks SET status='failed', error_message=:err WHERE id=:id"),
+                {"err": str(e), "id": tsk_uuid}
+            )
+            db_bg.commit()
+            print(f"❌ [WORKER FALHOU] Erro na geração da Task {tsk_uuid}: {e}")
+        finally:
+            db_bg.close()
+
+    # 4. Despacha o trabalhador sem prender a resposta HTTP
+    background_tasks.add_task(process_copy_task, tenant.id, req.request_type, req.brief, req.parameters, task_id)
+
+    # 5. Responde instantaneamente ao Frontend
+    return {
+        "status": "accepted",
+        "task_id": task_id,
+        "message": "Ordem de serviço aceita. O Copy Chief está a forjar a peça nos bastidores."
+    }
+
+
+@app.get("/api/copy-chief/status/{task_id}")
+def check_generation_status(task_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    O Frontend faz "Polling" nesta rota a cada 3 ou 5 segundos.
+    Quando retornar 'completed', puxa os dados e exibe na tela para o cliente.
+    """
+    res = db.execute(text("SELECT status, result_data, error_message FROM async_tasks WHERE id=:id"), {"id": task_id}).fetchone()
+    
+    if not res:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+
+    status, result_data, error_message = res
+    
+    if status == "completed":
+        return {"status": status, "data": json.loads(result_data)}
+    elif status == "failed":
+        return {"status": status, "error": error_message}
+    else:
+        # Se for 'pending' ou 'processing', avisamos para o FrontEnd continuar à espera
+        return {"status": status} 
+
+
+@app.post("/api/copy-chief/track/{log_id}")
+def track_copy_asset(
+    log_id: int,
+    req: CopyTrackingRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Rota do Córtex de Memória. 
+    Acopla um rastreador (URL externa) a uma peça de copy previamente gerada para retroalimentar a memória.
+    """
+    memory = MemoryCortex(db_session=db)
+    sucesso = memory.attach_telemetry_tracker(log_id=log_id, external_url=req.external_url)
+    
+    if sucesso:
+        return {"status": "success", "message": f"Telemetria ativada. Orion está agora vigiando: {req.external_url}"}
+    else:
+        raise HTTPException(status_code=404, detail="Log ID não encontrado ou falha de registro interno.")
+    
+# =====================================================================
+# 🚀 IGNIÇÃO DO SERVIDOR
+# =====================================================================
+if __name__ == "__main__":
+    import uvicorn
+    # Inicia o servidor na porta 8000 e ativa o reload automático
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -14,11 +14,14 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 load_dotenv()
 
 # =====================================================================
-# CONFIGURAÇÃO DE VARIÁVEIS (Nomes padronizados para Produção)
+# CONFIGURAÇÃO DE VARIÁVEIS (Atualizado para Roteamento Multi-Agent)
 # =====================================================================
 TOKEN_APIFY = os.getenv("APIFY_TOKEN")
-KEY_GEMINI = os.getenv("GEMINI_API_KEY")
 KEY_YOUTUBE = os.getenv("YOUTUBE_API_KEY")
+
+# 🚀 LOAD BALANCING: O Scheduler agora usa as chaves específicas do .env
+KEY_ESPIAO = os.getenv("GEMINI_KEY_ESPIAO")
+KEY_CMO = os.getenv("GEMINI_KEY_CMO")
 
 # =====================================================================
 # IMPORTAÇÕES ESTRITAS (Sem adivinhações - Caminhos definitivos)
@@ -58,8 +61,8 @@ def run_worker_ads():
     """Worker 2: Lê as legendas salvas e gera os Ganchos de Arena via IA."""
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] ⚔️ WORKER 2: Analisador da Arena")
     try:
-        if not KEY_GEMINI: raise ValueError("GEMINI_API_KEY ausente.")
-        worker = AdsWorker(KEY_GEMINI)
+        if not KEY_ESPIAO: raise ValueError("GEMINI_KEY_ESPIAO ausente.")
+        worker = AdsWorker(KEY_ESPIAO) # Usa a chave do espião
         worker.run_arena_cycle()
     except Exception as e:
         print(f"❌ ERRO na Arena: {e}")
@@ -68,10 +71,10 @@ def run_worker_scout():
     """Worker 3: Mapeia o Oceano Azul e dores da Persona."""
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 📡 WORKER 3: Radar Scout (YouTube)")
     try:
-        if not KEY_YOUTUBE or not KEY_GEMINI: 
+        if not KEY_YOUTUBE or not KEY_CMO: 
             print("⚠️ Chaves de API ausentes para o Scout. Pulando...")
             return
-        worker = YouTubeScoutRadar(KEY_YOUTUBE, KEY_GEMINI)
+        worker = YouTubeScoutRadar(KEY_YOUTUBE, KEY_CMO) # Usa a chave do CMO
         worker.run_radar_cycle()
     except Exception as e:
         print(f"❌ ERRO no Scout: {e}")
@@ -80,8 +83,8 @@ def run_vortex_scraper():
     """Worker 4: Infiltração em concorrentes e qualificação de leads."""
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🌀 WORKER 4: Infiltrador Vórtex")
     try:
-        if not TOKEN_APIFY or not KEY_GEMINI: raise ValueError("Tokens ausentes para o Vórtex.")
-        worker = VortexInfiltrator(TOKEN_APIFY, KEY_GEMINI)
+        if not TOKEN_APIFY or not KEY_ESPIAO: raise ValueError("Tokens ausentes para o Vórtex.")
+        worker = VortexInfiltrator(TOKEN_APIFY, KEY_ESPIAO) # Usa a chave do espião
         worker.run_infiltration_cycle()
     except Exception as e:
         print(f"❌ ERRO no Vórtex: {e}")
