@@ -377,15 +377,11 @@ def receive_external_briefing(
         db.add(new_tenant)
         db.flush() 
 
-        # 4. Salva o Briefing
+        # 4. Salva o Briefing APENAS no Cofre Principal (raw_data)
+        # O raw_data já contém o Nome, WhatsApp, Profissão e todas as 10 respostas perfeitamente organizadas.
         new_briefing = ClientBriefing(
             tenant_id=new_tenant.id,
-            raw_data=payload.model_dump(by_alias=True), 
-            product_name=payload.Profissao,
-            product_description=f"Serviço Principal: {payload.Q01}",
-            target_audience=payload.Q04,
-            main_pain_points=[payload.Q04, payload.Q05], # ✅ O banco agora é JSON, aceita a lista perfeitamente!
-            unique_selling_point=payload.Q07
+            raw_data=payload.model_dump(by_alias=True)
         )
         db.add(new_briefing)
 
