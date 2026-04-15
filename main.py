@@ -367,14 +367,16 @@ def receive_external_briefing(
         # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
         # NOTA: Certifiquem-se de que as colunas keywords, competitors e personas 
         # foram devidamente adicionadas ao database/models.py!
+        # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
         new_tenant = Tenant(
             owner_id=owner_id,
             name=f"[LEAD] {payload.Nome}", 
             social_handle=clean_ig,
             niche=payload.Profissao,
-            keywords="", 
-            competitors="",
-            personas=""
+            # 🚀 CORREÇÃO: Usar listas vazias [] em vez de textos vazios ""
+            keywords=[], 
+            competitors=[],
+            personas=[]
         )
         db.add(new_tenant)
         db.flush() # Força a geração do ID
