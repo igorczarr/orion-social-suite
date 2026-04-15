@@ -74,12 +74,25 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Inicializando aplicação Orion (Elite Mode)...")
-
     try:
         init_db()
         print("✅ Tabelas sincronizadas com sucesso no Banco de Dados.")
     except Exception as e:
         print(f"❌ [CRÍTICO] Falha ao sincronizar tabelas: {e}")
+
+    # (O vosso bloco de Auto-Patch continua aqui normal...)
+
+    # 🛑 COMENTÁMOS O SCHEDULER PARA POUPAR MEMÓRIA NO RENDER DURANTE O TESTE
+    # def run_scheduler_delayed():
+    #     import subprocess
+    #     import time
+    #     time.sleep(30)
+    #     subprocess.Popen(["python", "scheduler.py"], close_fds=True)
+    # threading.Thread(target=run_scheduler_delayed, daemon=True).start()
+
+    print("✅ API Orion pronta para combate.")
+    yield
+    print("🛑 Encerrando aplicação...")
 
     # ==========================================================
     # 🛠️ MOTOR DE AUTO-PATCH (SELF-HEALING)
@@ -335,7 +348,7 @@ def receive_external_briefing(
         admin = db.query(User).first()
         if not admin:
             # Se o banco estiver vazio, cria um admin fantasma temporário
-            admin = User(email="admin@vrtice.com.br", hashed_password=b"fallback", role="admin")
+            admin = User(email="admin@vrtice.com.br", hashed_password="fallback", role="admin")
             db.add(admin)
             db.commit()
             db.refresh(admin)
