@@ -347,6 +347,7 @@ class ClientBriefing(Base):
     product_ecosystem = Column(JSON)        # Tabela de produtos (Isca, Core, High-Ticket)
     unique_value_proposition_raw = Column(Text)
     
+    raw_data = Column(JSON, nullable=True)
     raw_form_data = Column(JSON)            # Backup completo do formulário enviado
     
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
