@@ -281,23 +281,29 @@ class TacticalGenerateRequest(BaseModel):
     content: str
 
 # 🚀 INJEÇÃO: Schema para o Formulário Git Externo
+
 class ExternalBriefingSubmit(BaseModel):
+    # Campos Cadastrais
     Nome: str
     WhatsApp: str
     Email: str
     Profissao: str
     Instagram: str
-    Q01_Servico_Principal: str = Field(alias="01_Servico_Principal")
-    Q02_Origem_Clientes: str = Field(alias="02_Origem_Clientes")
-    Q03_Estrutura_Atual: str = Field(alias="03_Estrutura_Atual")
-    Q04_Gargalo: str = Field(alias="04_Gargalo")
-    Q05_Tempo_Gasto: str = Field(alias="05_Tempo_Gasto")
-    Q06_Operacao_Atual: str = Field(alias="06_Operacao_Atual")
-    Q07_Cenario_Ideal: str = Field(alias="07_Cenario_Ideal")
-    Q08_Tomada_Decisao: str = Field(alias="08_Tomada_Decisao")
-    Q09_Faturamento: str = Field(alias="09_Faturamento")
-    Q10_Disponibilidade_Investimento: str = Field(alias="10_Disponibilidade_Investimento")
+    
+    # Mapeamento das 10 Perguntas (Usando aliases para aceitar os nomes do HTML)
+    Q01: str = Field(alias="01_Servico_Principal")
+    Q02: str = Field(alias="02_Origem_Clientes")
+    Q03: str = Field(alias="03_Estrutura_Atual")
+    Q04: str = Field(alias="04_Gargalo")
+    Q05: str = Field(alias="05_Tempo_Gasto")
+    Q06: str = Field(alias="06_Operacao_Atual")
+    Q07: str = Field(alias="07_Cenario_Ideal")
+    Q08: str = Field(alias="08_Tomada_Decisao")
+    Q09: str = Field(alias="09_Faturamento")
+    Q10: str = Field(alias="10_Disponibilidade_Investimento")
 
+    # Permite que o Pydantic aceite tanto o nome da variável quanto o nome do HTML
+    model_config = {"populate_by_name": True}
 # --- ROTAS DA API ---
 
 @app.get("/api/scout/status")
@@ -359,12 +365,14 @@ def receive_external_briefing(
         clean_ig = clean_db_username(payload.Instagram)
         
         # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
+        # NOTA: Certifiquem-se de que as colunas keywords, competitors e personas 
+        # foram devidamente adicionadas ao database/models.py!
         new_tenant = Tenant(
             owner_id=owner_id,
-            name=f"[LEAD] {payload.Nome}", # 🚀 Facilita a identificação no vosso Painel Orion
+            name=f"[LEAD] {payload.Nome}", 
             social_handle=clean_ig,
             niche=payload.Profissao,
-            keywords="", # Vazio para a equipa preencher depois
+            keywords="", 
             competitors="",
             personas=""
         )
@@ -372,14 +380,15 @@ def receive_external_briefing(
         db.flush() # Força a geração do ID
 
         # 4. Salva o Briefing e TODOS os dados brutos (Email, WhatsApp) no JSON
+        # 🚀 CORREÇÃO: Usando a sintaxe correta do Pydantic (Q01, Q04, etc.)
         new_briefing = ClientBriefing(
             tenant_id=new_tenant.id,
-            raw_data=payload.model_dump(by_alias=True), # 🚀 Salva o formulário 100% intacto aqui
+            raw_data=payload.model_dump(by_alias=True), 
             product_name=payload.Profissao,
-            product_description=f"Serviço Principal: {payload.Q01_Servico_Principal}",
-            target_audience=payload.Q04_Gargalo,
-            main_pain_points=[payload.Q04_Gargalo, payload.Q05_Tempo_Gasto],
-            unique_selling_point=payload.Q07_Cenario_Ideal
+            product_description=f"Serviço Principal: {payload.Q01}",
+            target_audience=payload.Q04,
+            main_pain_points=[payload.Q04, payload.Q05],
+            unique_selling_point=payload.Q07
         )
         db.add(new_briefing)
 
@@ -394,8 +403,8 @@ def receive_external_briefing(
     except Exception as e:
         db.rollback()
         print(f"❌ [ERRO ONBOARDING] Falha no Banco de Dados: {e}")
-        # Retorna o erro exato para o Front-end para facilitar diagnóstico se falhar novamente
         raise HTTPException(status_code=500, detail=str(e))
+    
 # --- ROTAS DO NOVO COFRE (MULTI-TENANT) ---
 
 @app.post("/api/tenants", response_model=TenantResponse)
