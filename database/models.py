@@ -3,6 +3,7 @@ from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Float, JSON, Boolean, func
 
+
 Base = declarative_base()
 
 # =====================================================================
@@ -39,9 +40,9 @@ class Tenant(Base):
     niche = Column(String)
     created_at = Column(DateTime, default=datetime.now)
     # 🎯 ENRIQUECIMENTO INTERNO ORION (Preenchido pela Agência)
-    keywords = Column(Text, nullable=True)
-    competitors = Column(Text, nullable=True)
-    personas = Column(Text, nullable=True)
+    keywords = Column(JSON, nullable=True)
+    competitors = Column(JSON, nullable=True)
+    personas = Column(JSON, nullable=True)
     
     encrypted_ig_session = Column(Text, nullable=True) # Cofre de Credenciais
     

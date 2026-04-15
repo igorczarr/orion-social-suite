@@ -365,31 +365,26 @@ def receive_external_briefing(
         clean_ig = clean_db_username(payload.Instagram)
         
         # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
-        # NOTA: Certifiquem-se de que as colunas keywords, competitors e personas 
-        # foram devidamente adicionadas ao database/models.py!
-        # 3. Cria o "Pré-Projeto" (Identificado como LEAD)
         new_tenant = Tenant(
             owner_id=owner_id,
             name=f"[LEAD] {payload.Nome}", 
             social_handle=clean_ig,
             niche=payload.Profissao,
-            # 🚀 CORREÇÃO: Usar listas vazias [] em vez de textos vazios ""
-            keywords=[], 
-            competitors=[],
-            personas=[]
+            keywords=[],     # ✅ Agora é JSON no banco, aceita a lista vazia
+            competitors=[],  # ✅ Agora é JSON no banco, aceita a lista vazia
+            personas=[]      # ✅ Agora é JSON no banco, aceita a lista vazia
         )
         db.add(new_tenant)
-        db.flush() # Força a geração do ID
+        db.flush() 
 
-        # 4. Salva o Briefing e TODOS os dados brutos (Email, WhatsApp) no JSON
-        # 🚀 CORREÇÃO: Usando a sintaxe correta do Pydantic (Q01, Q04, etc.)
+        # 4. Salva o Briefing
         new_briefing = ClientBriefing(
             tenant_id=new_tenant.id,
             raw_data=payload.model_dump(by_alias=True), 
             product_name=payload.Profissao,
             product_description=f"Serviço Principal: {payload.Q01}",
             target_audience=payload.Q04,
-            main_pain_points=[payload.Q04, payload.Q05],
+            main_pain_points=[payload.Q04, payload.Q05], # ✅ O banco agora é JSON, aceita a lista perfeitamente!
             unique_selling_point=payload.Q07
         )
         db.add(new_briefing)
