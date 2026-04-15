@@ -38,7 +38,10 @@ class Tenant(Base):
     social_handle = Column(String, nullable=False) # Ex: "@lojasrenner"
     niche = Column(String)
     created_at = Column(DateTime, default=datetime.now)
-    keywords = Column(String, nullable=True)
+    # 🎯 ENRIQUECIMENTO INTERNO ORION (Preenchido pela Agência)
+    keywords = Column(Text, nullable=True)
+    competitors = Column(Text, nullable=True)
+    personas = Column(Text, nullable=True)
     
     encrypted_ig_session = Column(Text, nullable=True) # Cofre de Credenciais
     
